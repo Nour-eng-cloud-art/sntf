@@ -6,14 +6,7 @@ import 'package:sntf/ui/widgets/animated_text_field.dart';
 import 'package:sntf/ui/widgets/animated_button.dart';
 import 'package:sntf/ui/widgets/train_animation.dart';
 
-/// Progressive Onboarding Sign-in Page for SNTF Client App
-/// 
-/// This page guides the user through a multi-step registration process:
-/// Step 0: Welcome & Account type confirmation
-/// Step 1: Basic Information (Name, Email, Phone)
-/// Step 2: Personal Details (Date of birth, Gender, Address)
-/// Step 3: Travel Preferences (Reduction card, Notifications)
-/// Step 4: Security (Password creation)
+
 class Signin extends StatefulWidget {
   const Signin({super.key});
 
