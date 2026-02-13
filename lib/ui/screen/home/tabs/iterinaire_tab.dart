@@ -120,7 +120,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 child: FlutterLocationPicker(
                   userAgent: 'com.sntf.app/1.0.0',
-                  initPosition: LatLong(36.7538, 3.0588), // Alger
+                  initPosition: LatLong(36.7538, 3.0588),
                   trackMyPosition: false,
                   showCurrentLocationPointer: true,
                   initZoom: 10,

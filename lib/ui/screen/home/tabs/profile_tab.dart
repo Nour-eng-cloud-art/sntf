@@ -80,40 +80,6 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Stats
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: LucideIcons.trainFront,
-                    value: '24',
-                    label: 'Voyages',
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: LucideIcons.mapPin,
-                    value: '8',
-                    label: 'Villes',
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: LucideIcons.route,
-                    value: '4,520',
-                    label: 'Km',
-                    isDark: isDark,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
             // Menu Sections
             _MenuSection(
               title: 'Compte',
