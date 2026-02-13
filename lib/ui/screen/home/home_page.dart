@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
-import 'package:sntf/ui/screen/home/tabs/home_tab.dart';
-import 'package:sntf/ui/screen/home/tabs/search_tab.dart';
+import 'package:sntf/ui/screen/home/tabs/traffic_tab.dart';
+import 'package:sntf/ui/screen/home/tabs/iterinaire_tab.dart';
 import 'package:sntf/ui/screen/home/tabs/tickets_tab.dart';
 import 'package:sntf/ui/screen/home/tabs/map_tab.dart';
 import 'package:sntf/ui/screen/home/tabs/profile_tab.dart';
@@ -23,14 +23,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   final List<_NavItem> _navItems = [
     _NavItem(
-      icon: LucideIcons.house,
-      activeIcon: LucideIcons.house,
-      label: 'Accueil',
+      icon: LucideIcons.map,
+      activeIcon: LucideIcons.map,
+      label: 'Carte',
     ),
     _NavItem(
-      icon: LucideIcons.search,
-      activeIcon: LucideIcons.search,
-      label: 'Recherche',
+      icon: LucideIcons.waypoints,
+      activeIcon: LucideIcons.waypoints,
+      label: 'Iterinaire',
     ),
     _NavItem(
       icon: LucideIcons.ticket,
@@ -38,9 +38,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       label: 'Billets',
     ),
     _NavItem(
-      icon: LucideIcons.map,
-      activeIcon: LucideIcons.map,
-      label: 'Carte',
+      icon: LucideIcons.trainFront,
+      activeIcon: LucideIcons.trainFront,
+      label: 'Traffic',
     ),
     _NavItem(
       icon: LucideIcons.user,
@@ -106,10 +106,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             setState(() => _currentIndex = index);
           },
           children: const [
-            HomeTab(),
+            MapTab(),
             SearchTab(),
             TicketsTab(),
-            MapTab(),
+            TrafficTab(),
             ProfileTab(),
           ],
         ),
