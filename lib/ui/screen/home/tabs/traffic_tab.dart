@@ -209,24 +209,87 @@ class _TrafficTabState extends State<TrafficTab> {
 
   // Bus Search
   Widget _buildBusSearch(ThemeData theme, bool isDark) {
-    return TextField(
-      controller: _busSearchController,
-      decoration: InputDecoration(
-        hintText: 'Search for a bus line',
-        hintStyle: TextStyle(color: AppColors.grey500),
-        prefixIcon: Icon(LucideIcons.search, color: AppColors.grey500),
-        filled: true,
-        fillColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+    final busLines = [
+      _LineBadgeData('A', const Color(0xFF003CA6), hasInfo: true),
+      _LineBadgeData('B', const Color(0xFF00A651)),
+      _LineBadgeData('C', const Color(0xFFF7931D)),
+      _LineBadgeData('E', const Color(0xFFE31E24)),
+      _LineBadgeData('G', const Color(0xFF8B5CF6)),
+      _LineBadgeData('H', const Color(0xFF06B6D4)),
+      _LineBadgeData('11', const Color(0xFF10B981), hasAlert: true),
+      _LineBadgeData('34', const Color(0xFFF59E0B)),
+      _LineBadgeData('37', const Color(0xFF3B82F6)),
+      _LineBadgeData('42', const Color(0xFFEF4444)),
+      _LineBadgeData('51', const Color(0xFF6366F1)),
+      _LineBadgeData('102', const Color(0xFFEC4899)),
+      _LineBadgeData('U', const Color(0xFF14B8A6)),
+    ];
+
+    return Column(
+      children: [
+        TextField(
+          controller: _busSearchController,
+          decoration: InputDecoration(
+            hintText: 'Search for a bus line',
+            hintStyle: TextStyle(color: AppColors.grey500),
+            prefixIcon: Icon(LucideIcons.search, color: AppColors.grey500),
+            filled: true,
+            fillColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: busLines.map((line) => _buildBusLineBadge(line)).toList(),
+        ),
+      ],
     );
   }
 
   // Badge Builders
+  Widget _buildBusLineBadge(_LineBadgeData data) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: data.color,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            data.label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: data.textColor,
+            ),
+          ),
+        ),
+        if (data.hasAlert)
+          Positioned(
+            right: -6,
+            top: -6,
+            child: _buildAlertIndicator(),
+          ),
+        if (data.hasInfo)
+          Positioned(
+            right: -6,
+            top: -6,
+            child: _buildInfoIndicator(),
+          ),
+      ],
+    );
+  }
+
   Widget _buildTrainLineBadge(_LineBadgeData data) {
     return Stack(
       clipBehavior: Clip.none,
