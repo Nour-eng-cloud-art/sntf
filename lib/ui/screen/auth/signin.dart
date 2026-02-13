@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/models/user.dart';
+import 'package:sntf/providers/auth_provider.dart';
 import 'package:sntf/ui/widgets/animated_text_field.dart';
 import 'package:sntf/ui/widgets/animated_button.dart';
 import 'package:sntf/ui/widgets/train_animation.dart';
@@ -263,34 +265,37 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
   Future<void> _handleSignup() async {
     setState(() => _isLoading = true);
 
-    // Simulate signup process
-    await Future.delayed(const Duration(seconds: 2));
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    final success = await authProvider.signUp(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      nom: _nomController.text.trim(),
+      prenom: _prenomController.text.trim(),
+      dateNaissance: _dateNaissance,
+    );
 
-    // Create the user object (in real app, send to backend)
-    final userData = {
-      'nom': _nomController.text,
-      'prenom': _prenomController.text,
-      'email': _emailController.text,
-      'telephone': _phoneController.text,
-      'date_naissance': _dateNaissance?.toIso8601String(),
-      'genre': _selectedGenre.toString().split('.').last,
-      'adresse': _adresseController.text,
-      'ville': _selectedVille,
-      'code_postal': _codePostalController.text,
-      'wilaya': _selectedWilaya,
-      'carte_reduction': _selectedCarte.toString().split('.').last,
-      'numero_carte_reduction': _numeroCarteController.text,
-      'notifications_actives': _notificationsActives,
-      'emails_promotionnels': _emailsPromotionnels,
-    };
-
-    debugPrint('User data: $userData');
+    print('Signup result: $success, error: ${authProvider.errorMessage}');
 
     setState(() => _isLoading = false);
 
     if (mounted) {
-      // Show success dialog
-      _showSuccessDialog();
+      if (success) {
+        // Show success dialog
+        _showSuccessDialog();
+      } else if (authProvider.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.errorMessage!),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+        authProvider.clearError();
+      }
     }
   }
 
@@ -311,18 +316,18 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.check_circle_rounded,
+                  Icons.email_rounded,
                   size: 50,
-                  color: AppColors.success,
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(height: 24),
               Text(
-                'Bienvenue ${_prenomController.text} !',
+                'Vérifiez votre email',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -330,7 +335,7 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 12),
               Text(
-                'Votre compte a été créé avec succès.\nVous pouvez maintenant profiter de tous les services SNTF.',
+                'Un email de confirmation a été envoyé à ${_emailController.text.trim()}.\n\nVeuillez cliquer sur le lien dans l\'email pour activer votre compte.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -338,12 +343,12 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 24),
               AnimatedButton(
-                text: 'Commencer',
+                text: 'Aller à la connexion',
                 onPressed: () {
                   Navigator.of(context).pop();
-                  Navigator.of(context).pushReplacementNamed('/home');
+                  Navigator.of(context).pushReplacementNamed('/login');
                 },
-                icon: Icons.arrow_forward_rounded,
+                icon: Icons.login_rounded,
               ),
             ],
           ),

@@ -18,43 +18,159 @@ enum CarteReduction {
 // Type de document d'identité
 enum TypeDocument { cin, passeport, permisConduire }
 
+/// User profile from Supabase profiles table
 class AppUser {
   final String id; // L'ID unique de Supabase (auth.uid)
-  final String nom;
-  final String prenom;
-  final String email;
+  final String? email;
+  final String? nom;
+  final String? prenom;
   final UserRole role;
+  final DateTime? dateNaissance;
   final String? photoUrl;
+  final DateTime createdAt;
 
   AppUser({
     required this.id,
-    required this.nom,
-    required this.prenom,
-    required this.email,
-    required this.role,
+    this.email,
+    this.nom,
+    this.prenom,
+    this.role = UserRole.client,
+    this.dateNaissance,
     this.photoUrl,
-  });
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  String get fullName => '${prenom ?? ''} ${nom ?? ''}'.trim();
+  
+  bool get isComplete => nom != null && prenom != null && email != null;
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
       id: json['id'],
+      email: json['email'],
       nom: json['nom'],
       prenom: json['prenom'],
-      email: json['email'],
-      // On convertit la chaîne "controleur" en Enum
-      role: UserRole.values.firstWhere((e) => e.toString().split('.').last == json['role']),
+      role: _parseRole(json['role']),
+      dateNaissance: json['date_naissance'] != null 
+          ? DateTime.parse(json['date_naissance']) 
+          : null,
       photoUrl: json['photo_url'],
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at']) 
+          : DateTime.now(),
+    );
+  }
+  
+  static UserRole _parseRole(dynamic role) {
+    if (role == null) return UserRole.client;
+    final roleStr = role.toString().toLowerCase();
+    return UserRole.values.firstWhere(
+      (e) => e.name == roleStr,
+      orElse: () => UserRole.client,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'email': email,
       'nom': nom,
       'prenom': prenom,
-      'email': email,
-      'role': role.toString().split('.').last,
+      'role': role.name,
+      'date_naissance': dateNaissance?.toIso8601String().split('T')[0],
       'photo_url': photoUrl,
+    };
+  }
+  
+  AppUser copyWith({
+    String? id,
+    String? email,
+    String? nom,
+    String? prenom,
+    UserRole? role,
+    DateTime? dateNaissance,
+    String? photoUrl,
+    DateTime? createdAt,
+  }) {
+    return AppUser(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      nom: nom ?? this.nom,
+      prenom: prenom ?? this.prenom,
+      role: role ?? this.role,
+      dateNaissance: dateNaissance ?? this.dateNaissance,
+      photoUrl: photoUrl ?? this.photoUrl,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+}
+
+/// Chauffeur (Driver) - linked to profiles table
+class Chauffeur {
+  final String id; // Same as profile id
+  final String matricule;
+  final DateTime? dateEmbauche;
+  final AppUser? profile; // Populated when joined
+
+  Chauffeur({
+    required this.id,
+    required this.matricule,
+    this.dateEmbauche,
+    this.profile,
+  });
+
+  factory Chauffeur.fromJson(Map<String, dynamic> json) {
+    return Chauffeur(
+      id: json['id'],
+      matricule: json['matricule'],
+      dateEmbauche: json['date_embauche'] != null 
+          ? DateTime.parse(json['date_embauche']) 
+          : null,
+      profile: json['profiles'] != null 
+          ? AppUser.fromJson(json['profiles']) 
+          : null,
+    );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'matricule': matricule,
+      'date_embauche': dateEmbauche?.toIso8601String().split('T')[0],
+    };
+  }
+}
+
+/// Controleur (Inspector) - linked to profiles table
+class Controleur {
+  final String id; // Same as profile id
+  final String matricule;
+  final String? secteurZone;
+  final AppUser? profile; // Populated when joined
+
+  Controleur({
+    required this.id,
+    required this.matricule,
+    this.secteurZone,
+    this.profile,
+  });
+
+  factory Controleur.fromJson(Map<String, dynamic> json) {
+    return Controleur(
+      id: json['id'],
+      matricule: json['matricule'],
+      secteurZone: json['secteur_zone'],
+      profile: json['profiles'] != null 
+          ? AppUser.fromJson(json['profiles']) 
+          : null,
+    );
+  }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'matricule': matricule,
+      'secteur_zone': secteurZone,
     };
   }
 }
@@ -188,27 +304,4 @@ class Client {
 
   /// Vérifie si le client a droit à une réduction senior
   bool get estSenior => age != null && age! >= 60;
-}
-
-class Controleur {
-  final String id;
-  final String userId; // Lien vers la table AppUser
-  final String matricule;
-  final String secteur; // Ex: "Zone Paris Centre"
-
-  Controleur({
-    required this.id,
-    required this.userId,
-    required this.matricule,
-    required this.secteur,
-  });
-
-  factory Controleur.fromJson(Map<String, dynamic> json) {
-    return Controleur(
-      id: json['id'],
-      userId: json['user_id'],
-      matricule: json['matricule'],
-      secteur: json['secteur'],
-    );
-  }
 }

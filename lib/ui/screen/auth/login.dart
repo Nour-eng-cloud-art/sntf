@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sntf/core/theme/app_colors.dart';
+import 'package:sntf/providers/auth_provider.dart';
 import 'package:sntf/ui/widgets/animated_text_field.dart';
 import 'package:sntf/ui/widgets/animated_button.dart';
 import 'package:sntf/ui/widgets/train_animation.dart';
@@ -24,6 +27,9 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
   
   bool _isLoading = false;
   bool _rememberMe = false;
+
+  static const String _rememberMeKey = 'remember_me';
+  static const String _savedEmailKey = 'saved_email';
 
   @override
   void initState() {
@@ -52,6 +58,32 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
     
     _fadeController.forward();
     _slideController.forward();
+    
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool(_rememberMeKey) ?? false;
+    final savedEmail = prefs.getString(_savedEmailKey) ?? '';
+    
+    if (rememberMe && savedEmail.isNotEmpty) {
+      setState(() {
+        _rememberMe = true;
+        _emailController.text = savedEmail;
+      });
+    }
+  }
+
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setBool(_rememberMeKey, true);
+      await prefs.setString(_savedEmailKey, _emailController.text.trim());
+    } else {
+      await prefs.setBool(_rememberMeKey, false);
+      await prefs.remove(_savedEmailKey);
+    }
   }
 
   @override
@@ -67,15 +99,59 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
-      // Simulate login process
-      await Future.delayed(const Duration(seconds: 2));
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      final success = await authProvider.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
       
       setState(() => _isLoading = false);
-      
-      // Navigate to home
-      if (mounted) {
+      print('Login success: $success');
+      if (success && mounted) {
+        await _saveCredentials();
         Navigator.of(context).pushReplacementNamed('/home');
+      } else if (mounted && authProvider.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.errorMessage!),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        authProvider.clearError();
       }
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez entrer votre email'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.resetPassword(email);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success 
+              ? 'Un email de réinitialisation a été envoyé'
+              : authProvider.errorMessage ?? 'Erreur lors de l\'envoi',
+          ),
+          backgroundColor: success ? Colors.green : Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      if (!success) authProvider.clearError();
     }
   }
 
@@ -210,7 +286,7 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
                             ),
                             TextButton(
                               onPressed: () {
-                                // Handle forgot password
+                                _handleForgotPassword();
                               },
                               child: Text(
                                 'Mot de passe oublié ?',
