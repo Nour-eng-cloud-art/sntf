@@ -21,9 +21,10 @@ class _ProfileTabState extends State<ProfileTab> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
         child: Column(
+          
           children: [
-            // Profile Header
             Container(
+              width: MediaQuery.widthOf(context),
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -73,33 +74,6 @@ class _ProfileTabState extends State<ProfileTab> {
                     'ahmed.bensalem@email.com',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Loyalty Points
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          LucideIcons.star,
-                          color: Colors.amber,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '2,450 points',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],

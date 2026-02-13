@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:location_picker_flutter_map/location_picker_flutter_map.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 
@@ -19,15 +20,15 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
   int _passengers = 1;
   bool _isRoundTrip = false;
 
-  final List<String> _popularStations = [
-    'Alger',
-    'Oran',
-    'Constantine',
-    'Annaba',
-    'Sétif',
-    'Blida',
-    'Béjaïa',
-    'Tlemcen',
+  final List<Map<String, dynamic>> _popularStations = [
+    {'name': 'Alger', 'lat': 36.7538, 'lng': 3.0588},
+    {'name': 'Oran', 'lat': 35.6969, 'lng': -0.6331},
+    {'name': 'Constantine', 'lat': 36.3650, 'lng': 6.6147},
+    {'name': 'Annaba', 'lat': 36.9000, 'lng': 7.7667},
+    {'name': 'Sétif', 'lat': 36.1898, 'lng': 5.4108},
+    {'name': 'Blida', 'lat': 36.4722, 'lng': 2.8278},
+    {'name': 'Béjaïa', 'lat': 36.7500, 'lng': 5.0667},
+    {'name': 'Tlemcen', 'lat': 34.8828, 'lng': -1.3167},
   ];
 
   @override
@@ -57,6 +58,134 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
       _departureController.text = _arrivalController.text;
       _arrivalController.text = temp;
     });
+  }
+
+  void _openLocationPicker({required bool isDeparture}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.grey700 : AppColors.grey300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(
+                    isDeparture ? LucideIcons.circleDot : LucideIcons.mapPin,
+                    color: isDeparture ? AppColors.success : AppColors.error,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    isDeparture ? 'Gare de départ' : 'Gare d\'arrivée',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(
+                      LucideIcons.x,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Location Picker
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: FlutterLocationPicker(
+                  userAgent: 'com.sntf.app/1.0.0',
+                  initPosition: LatLong(36.7538, 3.0588), // Alger
+                  trackMyPosition: false,
+                  showCurrentLocationPointer: true,
+                  initZoom: 10,
+                  minZoomLevel: 5,
+                  maxZoomLevel: 18,
+                  stepZoom: 1,
+                  searchBarHintText: 'Rechercher une gare...',
+                  searchBarBackgroundColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                  searchBarTextColor: isDark ? Colors.white : Colors.black87,
+                  searchBarHintColor: isDark ? AppColors.grey400 : AppColors.grey600,
+                  zoomButtonsColor: AppColors.primary,
+                  zoomButtonsBackgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                  locationButtonBackgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                  locationButtonsColor: AppColors.primary,
+                  markerIcon: Icon(
+                    isDeparture ? LucideIcons.circleDot : LucideIcons.mapPin,
+                    color: isDeparture ? AppColors.success : AppColors.error,
+                    size: 40,
+                  ),
+                  selectLocationButtonText: 'Sélectionner cette gare',
+                  selectLocationButtonStyle: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.all(
+                      isDeparture ? AppColors.success : AppColors.error,
+                    ),
+                    foregroundColor: WidgetStateProperty.all(Colors.white),
+                    padding: WidgetStateProperty.all(
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    ),
+                    shape: WidgetStateProperty.all(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    elevation: WidgetStateProperty.all(0),
+                  ),
+                  selectLocationButtonLeadingIcon: const Icon(
+                    LucideIcons.check,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  onPicked: (PickedData pickedData) {
+                    Navigator.pop(context);
+                    final locationName = pickedData.addressData['name'] ??
+                        pickedData.addressData['city'] ??
+                        pickedData.addressData['town'] ??
+                        pickedData.addressData['village'] ??
+                        pickedData.address.split(',').first;
+                    setState(() {
+                      if (isDeparture) {
+                        _departureController.text = locationName;
+                      } else {
+                        _arrivalController.text = locationName;
+                      }
+                    });
+                  },
+                  onError: (e) {
+                    debugPrint('Location picker error: $e');
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _selectDate() async {
@@ -161,6 +290,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                       label: 'Départ',
                       icon: LucideIcons.circleDot,
                       iconColor: AppColors.success,
+                      onTap: () => _openLocationPicker(isDeparture: true),
                     ),
                     
                     // Swap Button
@@ -203,6 +333,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                       label: 'Arrivée',
                       icon: LucideIcons.mapPin,
                       iconColor: AppColors.error,
+                      onTap: () => _openLocationPicker(isDeparture: false),
                     ),
                     const SizedBox(height: 20),
 
@@ -276,12 +407,12 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                 runSpacing: 8,
                 children: _popularStations.map((station) {
                   return _PopularStationChip(
-                    station: station,
+                    station: station['name'] as String,
                     onTap: () {
                       if (_departureController.text.isEmpty) {
-                        setState(() => _departureController.text = station);
+                        setState(() => _departureController.text = station['name'] as String);
                       } else if (_arrivalController.text.isEmpty) {
-                        setState(() => _arrivalController.text = station);
+                        setState(() => _arrivalController.text = station['name'] as String);
                       }
                     },
                   );
@@ -358,38 +489,54 @@ class _StationField extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color iconColor;
+  final VoidCallback? onTap;
 
   const _StationField({
     required this.controller,
     required this.label,
     required this.icon,
     required this.iconColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Row(
-      children: [
-        Icon(icon, color: iconColor, size: 20),
-        const SizedBox(width: 16),
-        Expanded(
-          child: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: label,
-              border: InputBorder.none,
-              hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(width: 16),
+          Expanded(
+            child: IgnorePointer(
+              ignoring: onTap != null,
+              child: TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: label,
+                  border: InputBorder.none,
+                  hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  suffixIcon: onTap != null
+                      ? Icon(
+                          LucideIcons.mapPinned,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          size: 20,
+                        )
+                      : null,
+                ),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

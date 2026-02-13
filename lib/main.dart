@@ -1,25 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:sntf/core/theme/app_theme.dart';
 import 'package:sntf/core/theme/theme_provider.dart';
 import 'package:sntf/ui/screen/auth/login.dart';
 import 'package:sntf/ui/screen/auth/signin.dart';
 import 'package:sntf/ui/screen/home/home_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  static _MyAppState? of(BuildContext context) =>
-      context.findAncestorStateOfType<_MyAppState>();
+  static MyAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<MyAppState>();
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<MyApp> createState() => MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class MyAppState extends State<MyApp> {
   final ThemeProvider _themeProvider = ThemeProvider();
 
   ThemeProvider get themeProvider => _themeProvider;
