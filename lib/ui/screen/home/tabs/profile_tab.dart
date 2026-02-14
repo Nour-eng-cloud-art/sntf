@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/main.dart';
 import 'package:sntf/providers/auth_provider.dart';
+import 'package:sntf/ui/screen/home/card_reduction.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -100,7 +101,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 _MenuItem(
                   icon: LucideIcons.creditCard,
                   label: 'Cartes de réduction',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const CardReductionPage()));
+                  },
                 ),
                 _MenuItem(
                   icon: LucideIcons.wallet,
