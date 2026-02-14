@@ -76,7 +76,7 @@ class AuthProvider extends ChangeNotifier {
     });
   }
   
-  /// Load user profile from database
+
   Future<void> _loadUserProfile(String userId) async {
     try {
       _status = AuthStatus.loading;
@@ -93,6 +93,7 @@ class AuthProvider extends ChangeNotifier {
         if (authUser != null) {
           final newProfile = {
             'id': authUser.id,
+            'date_naissance': null,
             'email': authUser.email,
             'role': 'client',
           };
@@ -130,11 +131,12 @@ class AuthProvider extends ChangeNotifier {
         data: {
           'nom': nom,
           'prenom': prenom,
+          'date_naissance': dateNaissance?.toIso8601String().split('T')[0],
         },
       );
       
       if (response.user != null) {
-        // Create profile in database
+        
         final profile = {
           'id': response.user!.id,
           'email': email,

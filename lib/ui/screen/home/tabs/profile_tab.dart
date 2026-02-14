@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/main.dart';
+import 'package:sntf/providers/auth_provider.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -15,6 +17,12 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.user;
+    
+    final fullName = user?.fullName ?? 'Utilisateur';
+    final email = user?.email ?? '';
+    final initials = _getInitials(fullName);
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -53,7 +61,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                     child: Center(
                       child: Text(
-                        'AB',
+                        initials,
                         style: theme.textTheme.headlineMedium?.copyWith(
                           color: AppColors.primary,
                           fontWeight: FontWeight.bold,
@@ -63,7 +71,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Ahmed Bensalem',
+                    fullName,
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -71,7 +79,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'ahmed.bensalem@email.com',
+                    email,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: Colors.white.withValues(alpha: 0.8),
                     ),
@@ -213,9 +221,13 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
@@ -230,6 +242,15 @@ class _ProfileTabState extends State<ProfileTab> {
         ],
       ),
     );
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase();
   }
 }
 
