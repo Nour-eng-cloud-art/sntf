@@ -5,6 +5,7 @@ import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/main.dart';
 import 'package:sntf/providers/auth_provider.dart';
 import 'package:sntf/ui/screen/home/card_reduction.dart';
+import 'package:sntf/ui/screen/home/payments.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -108,7 +109,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 _MenuItem(
                   icon: LucideIcons.wallet,
                   label: 'Moyens de paiement',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentPage()));
+                  },
                 ),
               ],
               isDark: isDark,
