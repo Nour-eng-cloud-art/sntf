@@ -144,22 +144,30 @@ class _ProfileTabState extends State<ProfileTab> {
                 _MenuItem(
                   icon: Icons.help_outline_rounded,
                   label: 'Aide & FAQ',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pushNamed(context, 'FaQ');
+                  },
                 ),
                 _MenuItem(
                   icon: LucideIcons.messageCircle,
                   label: 'Nous contacter',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pushNamed(context, 'Contact');
+                  },
                 ),
                 _MenuItem(
                   icon: LucideIcons.fileText,
                   label: 'Conditions d\'utilisation',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pushNamed(context, 'Conditions');
+                  },
                 ),
                 _MenuItem(
                   icon: LucideIcons.shield,
                   label: 'Politique de confidentialité',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pushNamed(context, 'Legal');
+                  },
                 ),
               ],
               isDark: isDark,

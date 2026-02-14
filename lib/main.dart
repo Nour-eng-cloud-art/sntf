@@ -10,7 +10,11 @@ import 'package:sntf/providers/incident_provider.dart';
 import 'package:sntf/providers/map_provider.dart';
 import 'package:sntf/ui/screen/auth/login.dart';
 import 'package:sntf/ui/screen/auth/signin.dart';
+import 'package:sntf/ui/screen/home/aide.dart';
+import 'package:sntf/ui/screen/home/contact.dart';
 import 'package:sntf/ui/screen/home/home_page.dart';
+import 'package:sntf/ui/screen/home/policy.dart';
+import 'package:sntf/ui/screen/home/user_condition.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -135,6 +139,11 @@ class MyAppState extends State<MyApp> {
           '/login': (context) => const Login(),
           '/signin': (context) => const Signin(),
           '/home': (context) => const HomePage(),
+          'FaQ': (context) => const FAQPage(),
+          'Contact': (context) => const ContactPage(),
+          'Conditions': (context) => const ConditionsUtilisationPage(),
+          'Legal': (context) => const LegalTextPage(title: "Mentions Légales"),
+          
         },
       ),
     );
