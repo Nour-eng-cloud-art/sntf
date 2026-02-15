@@ -6,6 +6,7 @@ import 'package:sntf/main.dart';
 import 'package:sntf/providers/auth_provider.dart';
 import 'package:sntf/ui/screen/home/card_reduction.dart';
 import 'package:sntf/ui/screen/home/payments.dart';
+import 'package:sntf/ui/screen/home/personal_info.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -97,7 +98,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 _MenuItem(
                   icon: LucideIcons.user,
                   label: 'Informations personnelles',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalInfoPage()));
+                  },
                 ),
                 _MenuItem(
                   icon: LucideIcons.creditCard,
