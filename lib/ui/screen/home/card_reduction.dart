@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/core/theme/app_text_styles.dart';
 import 'package:sntf/ui/widgets/animated_text_field.dart';
@@ -14,7 +15,10 @@ class CardReductionPage extends StatefulWidget {
   State<CardReductionPage> createState() => _CardReductionPageState();
 }
 
-class _CardReductionPageState extends State<CardReductionPage> {
+class _CardReductionPageState extends State<CardReductionPage> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  
   // 2. State: Manage the list of cards here
   final List<CardModel> _cards = [
     CardModel(
@@ -49,6 +53,25 @@ class _CardReductionPageState extends State<CardReductionPage> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   void _addNewCard(String cardNumber) {
     setState(() {
       _cards.add(CardModel(
@@ -67,63 +90,84 @@ class _CardReductionPageState extends State<CardReductionPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text("Mes Cartes"),
-        backgroundColor: colorScheme.surface, 
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: IconThemeData(color: colorScheme.onSurface),
-        titleTextStyle: AppTextStyles.headlineSmall.copyWith(
-          color: colorScheme.onSurface,
-          fontWeight: FontWeight.bold,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with back button
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          LucideIcons.arrowLeft,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mes Cartes',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Gérez vos cartes de réduction et abonnements',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Cards list
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: _cards.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 20),
+                  itemBuilder: (context, index) {
+                    final card = _cards[index];
+                    return ReductionCard(
+                      title: card.title,
+                      subtitle: card.subtitle,
+                      price: card.price,
+                      expiryDate: card.expiryDate,
+                      gradient: card.gradient,
+                      clientId: card.clientId,
+                      clientName: card.clientName,
+                      cardType: card.cardType,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        itemCount: _cards.length + 1, // +1 for the Header
-        separatorBuilder: (_, __) => const SizedBox(height: 20),
-        itemBuilder: (context, index) {
-          // Header Section
-          if (index == 0) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Portefeuille numérique",
-                  style: AppTextStyles.headlineSmall.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Retrouvez ici vos cartes d'abonnement et de réduction actives.",
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.grey500,
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-            );
-          }
-
-          // Card Items
-          final card = _cards[index - 1];
-          return ReductionCard(
-            title: card.title,
-            subtitle: card.subtitle,
-            price: card.price,
-            expiryDate: card.expiryDate,
-            gradient: card.gradient,
-            clientId: card.clientId,
-            clientName: card.clientName,
-            cardType: card.cardType,
-          );
-        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddCardSheet(context),

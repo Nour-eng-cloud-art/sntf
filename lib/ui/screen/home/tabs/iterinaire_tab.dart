@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:location_picker_flutter_map/location_picker_flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
+import 'package:sntf/ui/screen/map/full_screen_map_picker.dart';
 
 class SearchTab extends StatefulWidget {
   const SearchTab({super.key});
@@ -60,132 +61,32 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
     });
   }
 
-  void _openLocationPicker({required bool isDeparture}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.grey700 : AppColors.grey300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(
-                    isDeparture ? LucideIcons.circleDot : LucideIcons.mapPin,
-                    color: isDeparture ? AppColors.success : AppColors.error,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isDeparture ? 'Gare de départ' : 'Gare d\'arrivée',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(
-                      LucideIcons.x,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Location Picker
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: FlutterLocationPicker(
-                  userAgent: 'com.sntf.app/1.0.0',
-                  initPosition: LatLong(36.7538, 3.0588),
-                  trackMyPosition: false,
-                  showCurrentLocationPointer: true,
-                  initZoom: 10,
-                  minZoomLevel: 5,
-                  maxZoomLevel: 18,
-                  stepZoom: 1,
-                  searchBarHintText: 'Rechercher une gare...',
-                  searchBarBackgroundColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
-                  searchBarTextColor: isDark ? Colors.white : Colors.black87,
-                  searchBarHintColor: isDark ? AppColors.grey400 : AppColors.grey600,
-                  zoomButtonsColor: AppColors.primary,
-                  zoomButtonsBackgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                  locationButtonBackgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                  locationButtonsColor: AppColors.primary,
-                  markerIcon: Icon(
-                    isDeparture ? LucideIcons.circleDot : LucideIcons.mapPin,
-                    color: isDeparture ? AppColors.success : AppColors.error,
-                    size: 40,
-                  ),
-                  selectLocationButtonText: 'Sélectionner cette gare',
-                  selectLocationButtonStyle: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all(
-                      isDeparture ? AppColors.success : AppColors.error,
-                    ),
-                    foregroundColor: WidgetStateProperty.all(Colors.white),
-                    padding: WidgetStateProperty.all(
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    ),
-                    shape: WidgetStateProperty.all(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    elevation: WidgetStateProperty.all(0),
-                  ),
-                  selectLocationButtonLeadingIcon: const Icon(
-                    LucideIcons.check,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  onPicked: (PickedData pickedData) {
-                    Navigator.pop(context);
-                    final locationName = pickedData.addressData['name'] ??
-                        pickedData.addressData['city'] ??
-                        pickedData.addressData['town'] ??
-                        pickedData.addressData['village'] ??
-                        pickedData.address.split(',').first;
-                    setState(() {
-                      if (isDeparture) {
-                        _departureController.text = locationName;
-                      } else {
-                        _arrivalController.text = locationName;
-                      }
-                    });
-                  },
-                  onError: (e) {
-                    debugPrint('Location picker error: $e');
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+  void _openLocationPicker({required bool isDeparture}) async {
+    final result = await FullScreenMapPicker.show(
+      context,
+      initialPosition: const LatLng(36.7538, 3.0588),
+      title: isDeparture ? 'Gare de départ' : 'Gare d\'arrivée',
+      selectButtonText: 'Sélectionner cette gare',
+      primaryColor: isDeparture ? AppColors.success : AppColors.error,
     );
+    
+    if (result != null) {
+      final locationName = result.addressData['name']?.isNotEmpty == true
+          ? result.addressData['name']!
+          : result.addressData['city']?.isNotEmpty == true
+              ? result.addressData['city']!
+              : result.addressData['locality']?.isNotEmpty == true
+                  ? result.addressData['locality']!
+                  : result.address.split(',').first;
+      
+      setState(() {
+        if (isDeparture) {
+          _departureController.text = locationName;
+        } else {
+          _arrivalController.text = locationName;
+        }
+      });
+    }
   }
 
   Future<void> _selectDate() async {
@@ -623,12 +524,6 @@ class _PassengerSelector extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Passagers',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
                 Text(
                   '$count',
                   style: theme.textTheme.bodyMedium?.copyWith(

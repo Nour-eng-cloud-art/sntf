@@ -1,119 +1,211 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:sntf/core/theme/app_colors.dart';
 
-class ConditionsUtilisationPage extends StatelessWidget {
-  const ConditionsUtilisationPage({super.key});
+class PolicyPage extends StatefulWidget {
+  const PolicyPage({super.key});
+
+  @override
+  State<PolicyPage> createState() => _PolicyPageState();
+}
+
+class _PolicyPageState extends State<PolicyPage> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        title: const Text("Conditions d'utilisation"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white), 
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "CONDITIONS GÉNÉRALES DE VENTE ET D'UTILISATION (CGVU) - SNTF",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with back button
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          LucideIcons.arrowLeft,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Conditions d\'utilisation',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Dernière mise à jour : Janvier 2025',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 1 - Objet',
+                  content: 'Les présentes conditions générales d\'utilisation ont pour objet de définir les modalités d\'utilisation de l\'application mobile SNTF, mise à disposition par la Société Nationale des Transports Ferroviaires.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 2 - Accès au service',
+                  content: 'L\'accès à l\'application est gratuit. Toutefois, certaines fonctionnalités peuvent nécessiter la création d\'un compte utilisateur et l\'acceptation des présentes conditions.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 3 - Inscription',
+                  content: 'Pour s\'inscrire, l\'utilisateur doit fournir des informations exactes et complètes. Il s\'engage à mettre à jour ces informations en cas de changement et à ne pas créer plusieurs comptes.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 4 - Réservation et paiement',
+                  content: 'Les réservations effectuées via l\'application sont soumises aux conditions tarifaires en vigueur. Le paiement peut être effectué par carte CIB ou Edahabia. La confirmation de réservation est envoyée par notification et email.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 5 - Annulation et remboursement',
+                  content: 'Les conditions d\'annulation et de remboursement sont conformes à la réglementation en vigueur de la SNTF. Toute demande doit être effectuée au moins 2 heures avant le départ prévu.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 6 - Protection des données',
+                  content: 'La SNTF s\'engage à protéger les données personnelles des utilisateurs conformément à la législation algérienne en vigueur. Les données collectées sont utilisées uniquement dans le cadre des services proposés.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 7 - Responsabilité',
+                  content: 'La SNTF ne saurait être tenue responsable des interruptions de service, des erreurs techniques ou de toute perte de données. L\'utilisateur est responsable de la confidentialité de ses identifiants de connexion.',
+                ),
+                
+                _buildSection(
+                  theme: theme,
+                  isDark: isDark,
+                  title: 'Article 8 - Modification des conditions',
+                  content: 'La SNTF se réserve le droit de modifier les présentes conditions à tout moment. Les utilisateurs seront informés de toute modification par notification dans l\'application.',
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Contact info
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurface : AppColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.info,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Pour toute question, contactez-nous à contact@sntf.dz',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              "Version applicable au 14 février 2026",
-              style: TextStyle(color: Colors.purpleAccent.withOpacity(0.7), fontSize: 13),
-            ),
-            const Divider(color: Colors.white24, height: 40),
-            
-            _buildArticle(
-              "Article 1 : Objet du service",
-              "L'application mobile SNTF permet aux usagers de consulter les horaires des trains, de réserver des titres de transport et d'accéder aux informations relatives au réseau ferroviaire algérien. En utilisant cette application, vous acceptez sans réserve les présentes conditions."
-            ),
-            
-            _buildArticle(
-              "Article 2 : Création de compte",
-              "L'accès à certains services, notamment l'achat de billets, nécessite la création d'un compte utilisateur. L'usager s'engage à fournir des informations exactes. L'utilisation d'une fausse identité peut entraîner l'annulation du billet sans remboursement."
-            ),
-            
-            _buildArticle(
-              "Article 3 : Tarification et Paiement",
-              "Les tarifs affichés sont exprimés en Dinars Algériens (DZD). Le paiement s'effectue via les moyens de paiement électronique agréés (Carte CIB, Edahabia). Une fois la transaction confirmée, le billet électronique est généré instantanément dans l'application."
-            ),
-            
-            _buildArticle(
-              "Article 4 : Validité des billets",
-              "Le billet électronique est personnel et non transmissible. Il doit être présenté lors du contrôle, soit sur l'écran du smartphone, soit imprimé. L'usager doit également être en mesure de présenter une pièce d'identité officielle en cours de validité."
-            ),
-            
-            _buildArticle(
-              "Article 5 : Retards et Annulations",
-              "La SNTF s'efforce de respecter les horaires prévus. Toutefois, en cas de force majeure, de travaux sur les voies ou d'incidents techniques, des retards peuvent survenir. L'indemnisation ou le remboursement dépendra des conditions spécifiques à chaque type de trajet (Banlieue, Grande Ligne, Inter-villes)."
-            ),
-            
-            _buildArticle(
-              "Article 6 : Comportement à bord",
-              "Les voyageurs doivent respecter les règles de sécurité et de civisme à bord des rames. Il est strictement interdit de fumer, de dégrader le matériel ou d'entraver la fermeture des portes. Tout contrevenant s'expose à des amendes ou à une expulsion du train."
-            ),
-            
-            _buildArticle(
-              "Article 7 : Transport de bagages",
-              "Chaque voyageur a droit à un quota de bagages à main gratuit. Les objets encombrants ou dangereux sont interdits. La SNTF décline toute responsabilité en cas de perte, de vol ou de détérioration des bagages laissés sans surveillance."
-            ),
-            
-            _buildArticle(
-              "Article 8 : Modifications des conditions",
-              "La SNTF se réserve le droit de modifier les présentes CGU à tout moment. Les utilisateurs seront informés des mises à jour via une notification interne à l'application."
-            ),
-            
-            const SizedBox(height: 30),
-            const Center(
-              child: Text(
-                "Pour toute réclamation, veuillez contacter le service client via la rubrique 'Nous contacter'.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
-              ),
-            ),
-            const SizedBox(height: 50),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildArticle(String title, String content) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 30.0),
+  Widget _buildSection({
+    required ThemeData theme,
+    required bool isDark,
+    required String title,
+    required String content,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey200,
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.purpleAccent,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.1,
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             content,
-            textAlign: TextAlign.justify,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-              height: 1.6,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+              height: 1.5,
             ),
           ),
         ],

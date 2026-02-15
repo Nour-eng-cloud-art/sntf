@@ -9,11 +9,27 @@ class TrafficTab extends StatefulWidget {
   State<TrafficTab> createState() => _TrafficTabState();
 }
 
-class _TrafficTabState extends State<TrafficTab> {
+class _TrafficTabState extends State<TrafficTab> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
   final TextEditingController _busSearchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    _animationController.forward();
+  }
+
+  @override
   void dispose() {
+    _animationController.dispose();
     _busSearchController.dispose();
     super.dispose();
   }
@@ -23,33 +39,30 @@ class _TrafficTabState extends State<TrafficTab> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        elevation: 0,
-        title: Text(
-          'Traffic info',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: false,
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
-              const Text(
-                'Le traffic en temps réel pour tous les modes de transport',
-                style: TextStyle(fontSize: 16,fontWeight: FontWeight.w700, color: AppColors.grey600,),
-                textAlign: TextAlign.center,
+              // Header
+              Text(
+                'Traffic info',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 8),
+              Text(
+                'Le traffic en temps réel pour tous les modes de transport',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
               const Divider(height: 1),
               const SizedBox(height: 24),
               // Train Section

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:location_picker_flutter_map/location_picker_flutter_map.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
+import 'package:sntf/data/services/places_service.dart';
+import 'package:sntf/ui/screen/map/full_screen_map_picker.dart';
 
 class MapTab extends StatefulWidget {
   const MapTab({super.key});
@@ -19,175 +21,37 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   bool _isMapReady = false;
   String? _selectedLocationName;
   LatLng? _selectedLocation;
+  String? _apiKey;
 
-  /// Animate map to a location with smooth animation
+  @override
+  void initState() {
+    super.initState();
+    _apiKey = dotenv.env['TOMTOM_API_KEY'];
+  }
+
+  /// Animate map to a location
   void _animateMapTo(LatLng destLocation, double destZoom) {
     if (!_isMapReady) return;
-
-    final latTween = Tween<double>(
-      begin: _mapController.camera.center.latitude,
-      end: destLocation.latitude,
-    );
-    final lngTween = Tween<double>(
-      begin: _mapController.camera.center.longitude,
-      end: destLocation.longitude,
-    );
-    final zoomTween = Tween<double>(
-      begin: _mapController.camera.zoom,
-      end: destZoom,
-    );
-
-    final controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    final animation = CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeInOutCubic,
-    );
-
-    controller.addListener(() {
-      _mapController.move(
-        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-        zoomTween.evaluate(animation),
-      );
-    });
-
-    controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        controller.dispose();
-      }
-    });
-
-    controller.forward();
+    _mapController.move(destLocation, destZoom);
   }
 
   /// Open location picker
-  void _openLocationPicker() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.grey700 : AppColors.grey300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Text(
-                    'Rechercher un lieu',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(
-                      LucideIcons.x,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Location Picker
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: FlutterLocationPicker(
-                  userAgent: 'com.sntf.app/1.0.0',
-                  initPosition: LatLong(36.7538, 3.0588), // Alger
-                  trackMyPosition: false,
-                  showCurrentLocationPointer: true,
-                  // Map Configuration
-                  initZoom: 10,
-                  minZoomLevel: 5,
-                  maxZoomLevel: 18,
-                  stepZoom: 1,
-                  // Search Configuration
-                  searchBarHintText: 'Rechercher une adresse...',
-                  searchBarBackgroundColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
-                  searchBarTextColor: isDark ? Colors.white : Colors.black87,
-                  searchBarHintColor: isDark ? AppColors.grey400 : AppColors.grey600,
-                  // Controls Configuration
-                  zoomButtonsColor: AppColors.primary,
-                  zoomButtonsBackgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                  locationButtonBackgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                  locationButtonsColor: AppColors.primary,
-                  // Marker Configuration
-                  markerIcon: Icon(
-                    LucideIcons.mapPin,
-                    color: AppColors.primary,
-                    size: 40,
-                  ),
-                  // Select Button Configuration
-                  selectLocationButtonText: 'Sélectionner ce lieu',
-                  selectLocationButtonStyle: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all(AppColors.primary),
-                    foregroundColor: WidgetStateProperty.all(Colors.white),
-                    padding: WidgetStateProperty.all(
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    ),
-                    shape: WidgetStateProperty.all(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    elevation: WidgetStateProperty.all(0),
-                  ),
-                  selectLocationButtonLeadingIcon: const Icon(
-                    LucideIcons.check,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  // Callbacks
-                  onPicked: (PickedData pickedData) {
-                    Navigator.pop(context);
-                    setState(() {
-                      _selectedLocation = LatLng(
-                        pickedData.latLong.latitude,
-                        pickedData.latLong.longitude,
-                      );
-                      _selectedLocationName = pickedData.addressData['display_name'] ?? 
-                          pickedData.address;
-                    });
-                    _animateMapTo(
-                      LatLng(pickedData.latLong.latitude, pickedData.latLong.longitude),
-                      15.0,
-                    );
-                  },
-                  onError: (e) {
-                    debugPrint('Location picker error: $e');
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+  void _openLocationPicker() async {
+    final result = await FullScreenMapPicker.show(
+      context,
+      initialPosition: _selectedLocation ?? const LatLng(36.7538, 3.0588),
+      title: 'Rechercher un lieu',
+      selectButtonText: 'Sélectionner ce lieu',
+      primaryColor: AppColors.primary,
     );
+    
+    if (result != null) {
+      setState(() {
+        _selectedLocation = result.latLng;
+        _selectedLocationName = result.addressData['display_name'] ?? result.address;
+      });
+      _animateMapTo(result.latLng, 15.0);
+    }
   }
 
   final List<_Station> _stations = [
@@ -241,6 +105,87 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     ),
   ];
 
+  Set<Marker> _buildMarkers() {
+    final markers = <Marker>{};
+    
+    // Station markers
+    for (final station in _stations) {
+      final isSelected = _selectedStation == station.name;
+      markers.add(
+        Marker(
+          point: station.position,
+          width: 50,
+          height: 50,
+          child: GestureDetector(
+            onTap: () {
+              setState(() => _selectedStation = station.name);
+              if (_isMapReady) {
+                _animateMapTo(station.position, 12);
+              }
+            },
+            child: Icon(
+              LucideIcons.trainFront,
+              color: isSelected ? AppColors.primary : AppColors.primaryDark,
+              size: isSelected ? 32 : 28,
+            ),
+          ),
+        ),
+      );
+    }
+    
+    // Selected location marker
+    if (_selectedLocation != null) {
+      markers.add(
+        Marker(
+          point: _selectedLocation!,
+          width: 50,
+          height: 50,
+          child: Icon(
+            LucideIcons.mapPin,
+            color: AppColors.error,
+            size: 32,
+          ),
+        ),
+      );
+    }
+    
+    return markers;
+  }
+
+  List<Polyline> _buildPolylines() {
+    return [
+      // Alger - Oran line
+      Polyline(
+        points: const [
+          LatLng(36.7753, 3.0601), // Alger
+          LatLng(36.4703, 2.8277), // Blida
+          LatLng(35.6987, -0.6349), // Oran
+        ],
+        color: AppColors.trainTGV,
+        strokeWidth: 3,
+      ),
+      // Alger - Constantine line
+      Polyline(
+        points: const [
+          LatLng(36.7753, 3.0601), // Alger
+          LatLng(36.1898, 5.4108), // Sétif
+          LatLng(36.3650, 6.6147), // Constantine
+        ],
+        color: AppColors.trainTER,
+        strokeWidth: 3,
+      ),
+      // Constantine - Annaba line
+      Polyline(
+        points: const [
+          LatLng(36.3650, 6.6147), // Constantine
+          LatLng(36.9000, 7.7667), // Annaba
+        ],
+        color: AppColors.trainIntercite,
+        strokeWidth: 3,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -248,151 +193,58 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
     return Stack(
       children: [
-        // Map
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: const LatLng(36.7538, 3.0588), // Alger
-            initialZoom: 6.0,
-            minZoom: 5.0,
-            maxZoom: 18.0,
-            onMapReady: () {
-              setState(() => _isMapReady = true);
-            },
-            onTap: (tapPosition, point) {
-              setState(() {
-                _showStationsList = false;
-                _selectedStation = null;
-              });
-            },
-          ),
-          children: [
-            // Tile Layer
-            TileLayer(
-              urlTemplate: isDark
-                  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                  : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-              subdomains: const ['a', 'b', 'c', 'd'],
-              userAgentPackageName: 'com.sntf.app',
+        // TomTom Map
+        if (_apiKey != null && _apiKey!.isNotEmpty)
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: const LatLng(36.7538, 3.0588), 
+              initialZoom: 6.0,
+              minZoom: 5.0,
+              maxZoom: 18.0,
+              onMapReady: () {
+                setState(() => _isMapReady = true);
+              },
+              onTap: (tapPosition, point) {
+                setState(() {
+                  _showStationsList = false;
+                  _selectedStation = null;
+                });
+              },
             ),
-
-            // Railway lines (simplified representation)
-            PolylineLayer(
-              polylines: [
-                // Alger - Oran line
-                Polyline(
-                  points: [
-                    const LatLng(36.7753, 3.0601), // Alger
-                    const LatLng(36.4703, 2.8277), // Blida
-                    const LatLng(35.6987, -0.6349), // Oran
-                  ],
-                  color: AppColors.trainTGV,
-                  strokeWidth: 3,
-                ),
-                // Alger - Constantine line
-                Polyline(
-                  points: [
-                    const LatLng(36.7753, 3.0601), // Alger
-                    const LatLng(36.1898, 5.4108), // Sétif
-                    const LatLng(36.3650, 6.6147), // Constantine
-                  ],
-                  color: AppColors.trainTER,
-                  strokeWidth: 3,
-                ),
-                // Constantine - Annaba line
-                Polyline(
-                  points: [
-                    const LatLng(36.3650, 6.6147), // Constantine
-                    const LatLng(36.9000, 7.7667), // Annaba
-                  ],
-                  color: AppColors.trainIntercite,
-                  strokeWidth: 3,
-                ),
-              ],
-            ),
-
-            // Station markers
-            MarkerLayer(
-              markers: [
-                // Railway station markers
-                ..._stations.map((station) {
-                  final isSelected = _selectedStation == station.name;
-                  return Marker(
-                    point: station.position,
-                    width: isSelected ? 60 : 40,
-                    height: isSelected ? 60 : 40,
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedStation = station.name);
-                        if (_isMapReady) {
-                          _animateMapTo(station.position, 12);
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary : Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: AppColors.primary,
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          LucideIcons.trainFront,
-                          color: isSelected ? Colors.white : AppColors.primary,
-                          size: isSelected ? 28 : 20,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                // Selected location marker
-                if (_selectedLocation != null)
-                  Marker(
-                    point: _selectedLocation!,
-                    width: 50,
-                    height: 50,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.0, end: 1.0),
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.elasticOut,
-                      builder: (context, value, child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.error,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.error.withValues(alpha: 0.4),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              LucideIcons.mapPin,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                          ),
-                        );
-                      },
+            children: [
+              TileLayer(
+                urlTemplate: TomTomService.getTileUrl(_apiKey!),
+                userAgentPackageName: 'com.sntf.app',
+              ),
+              PolylineLayer(polylines: _buildPolylines()),
+              MarkerLayer(markers: _buildMarkers().toList()),
+            ],
+          )
+        else
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.mapPin, size: 48, color: AppColors.grey400),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Carte non disponible',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Clé API TomTom non configurée',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.grey500,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
 
         // Top Bar - Search
         SafeArea(

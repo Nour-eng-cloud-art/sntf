@@ -104,7 +104,7 @@ class MyAppState extends State<MyApp> {
       child: MaterialApp(
         title: 'SNTF',
         debugShowCheckedModeBanner: false,
-        
+         
         // Apply light theme
         theme: AppTheme.lightTheme,
         
@@ -141,7 +141,7 @@ class MyAppState extends State<MyApp> {
           '/home': (context) => const HomePage(),
           'FaQ': (context) => const FAQPage(),
           'Contact': (context) => const ContactPage(),
-          'Conditions': (context) => const ConditionsUtilisationPage(),
+          'Conditions': (context) => const PolicyPage(),
           'Legal': (context) => const LegalTextPage(title: "Mentions Légales"),
           
         },
