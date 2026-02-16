@@ -39,7 +39,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   void _openLocationPicker() async {
     final result = await FullScreenMapPicker.show(
       context,
-      initialPosition: _selectedLocation ?? const LatLng(36.7538, 3.0588),
+      initialPosition: _selectedLocation ?? const LatLng(35.6969, -0.6331),
       title: 'Rechercher un lieu',
       selectButtonText: 'Sélectionner ce lieu',
       primaryColor: AppColors.primary,
@@ -198,7 +198,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(36.7538, 3.0588), 
+              initialCenter: const LatLng(35.6969, -0.6331), 
               initialZoom: 6.0,
               minZoom: 5.0,
               maxZoom: 18.0,
@@ -372,8 +372,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 icon: LucideIcons.locate,
                 onTap: () {
                   if (_isMapReady) {
-                    // Center on Algiers
-                    _animateMapTo(const LatLng(36.7538, 3.0588), 10);
+                    // Center on Oran
+                    _animateMapTo(const LatLng(35.6969, -0.6331), 10);
                   }
                 },
                 isDark: isDark,

@@ -118,6 +118,7 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String nom,
     required String prenom,
+    required String phone,
     DateTime? dateNaissance,
   }) async {
     try {
@@ -131,6 +132,7 @@ class AuthProvider extends ChangeNotifier {
         data: {
           'nom': nom,
           'prenom': prenom,
+          'phone': phone,
           'date_naissance': dateNaissance?.toIso8601String().split('T')[0],
         },
       );
@@ -141,6 +143,7 @@ class AuthProvider extends ChangeNotifier {
           'id': response.user!.id,
           'email': email,
           'nom': nom,
+
           'prenom': prenom,
           'role': 'client',
           'date_naissance': dateNaissance?.toIso8601String().split('T')[0],

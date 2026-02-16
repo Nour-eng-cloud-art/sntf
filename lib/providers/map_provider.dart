@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sntf/data/models/transport.dart';
 
-/// Map state
+
 enum MapState {
   initial,
   loading,
@@ -24,7 +24,7 @@ class MapProvider extends ChangeNotifier {
   
   // Map config
   double _zoom = 13.0;
-  LatLng _center = const LatLng(36.7538, 3.0588); // Default: Algiers
+  LatLng _center = const LatLng(35.6969, -0.6331); // Default: Oran
   
   // Selected items
   Station? _selectedStation;

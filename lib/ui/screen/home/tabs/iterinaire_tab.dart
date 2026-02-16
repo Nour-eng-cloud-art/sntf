@@ -64,7 +64,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
   void _openLocationPicker({required bool isDeparture}) async {
     final result = await FullScreenMapPicker.show(
       context,
-      initialPosition: const LatLng(36.7538, 3.0588),
+      initialPosition: const LatLng(35.6969, -0.6331),
       title: isDeparture ? 'Gare de départ' : 'Gare d\'arrivée',
       selectButtonText: 'Sélectionner cette gare',
       primaryColor: isDeparture ? AppColors.success : AppColors.error,
@@ -266,7 +266,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Perform search
+                    Navigator.pushNamed(context, '/route-planning');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,

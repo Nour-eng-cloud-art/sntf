@@ -20,7 +20,7 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final PageController _pageController = PageController();
 
-  // Controllers for all fields
+
   final _nomController = TextEditingController();
   final _prenomController = TextEditingController();
   final _emailController = TextEditingController();
@@ -31,19 +31,18 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // Animation controllers
+
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // State variables
+
   bool _isLoading = false;
   bool _acceptTerms = false;
   int _currentStep = 0;
   static const int _totalSteps = 5;
 
-  // User data
   DateTime? _dateNaissance;
   Genre _selectedGenre = Genre.nonSpecifie;
   String? _selectedWilaya;
@@ -103,7 +102,7 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
     'Relizane': ['Relizane', 'Oued Rhiou', 'Mazouna', 'Djidioua', 'Aïn Tarek', 'Yellel', 'Mendes', 'Zemmora'],
   };
 
-  // Get list of wilayas (keys from the map)
+
   List<String> get _wilayas => _wilayaCities.keys.toList();
 
   @override
@@ -270,6 +269,7 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
     final success = await authProvider.signUp(
       email: _emailController.text.trim(),
       password: _passwordController.text,
+      phone: _phoneController.text.trim(),
       nom: _nomController.text.trim(),
       prenom: _prenomController.text.trim(),
       dateNaissance: _dateNaissance,
@@ -281,7 +281,6 @@ class _SigninState extends State<Signin> with TickerProviderStateMixin {
 
     if (mounted) {
       if (success) {
-        // Show success dialog
         _showSuccessDialog();
       } else if (authProvider.errorMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(

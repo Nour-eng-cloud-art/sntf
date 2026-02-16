@@ -23,8 +23,6 @@ class LocationData {
   });
 }
 
-/// A full-screen TomTom Maps location picker with search autocomplete
-/// Similar to the native Google Maps experience
 class FullScreenMapPicker extends StatefulWidget {
   final LatLng initialPosition;
   final double initialZoom;
@@ -37,7 +35,7 @@ class FullScreenMapPicker extends StatefulWidget {
 
   const FullScreenMapPicker({
     super.key,
-    this.initialPosition = const LatLng(36.7538, 3.0588), // Algiers
+    this.initialPosition = const LatLng(35.6969, -0.6331), // Oran
     this.initialZoom = 12,
     this.title = 'Choisir un lieu',
     this.selectButtonText = 'Confirmer ce lieu',
@@ -58,7 +56,7 @@ class FullScreenMapPicker extends StatefulWidget {
     return Navigator.of(context).push<LocationData>(
       MaterialPageRoute(
         builder: (context) => FullScreenMapPicker(
-          initialPosition: initialPosition ?? const LatLng(36.7538, 3.0588),
+          initialPosition: initialPosition ?? const LatLng(35.6969, -0.6331),
           title: title,
           selectButtonText: selectButtonText,
           primaryColor: primaryColor,

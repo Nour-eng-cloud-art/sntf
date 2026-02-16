@@ -509,4 +509,92 @@ class SupabaseService {
   Future<void> unsubscribe(RealtimeChannel channel) async {
     await client.removeChannel(channel);
   }
+
+  // ==================== ROUTING ====================
+
+  /// Get all ligne-station connections (for building routing graph)
+  Future<List<Map<String, dynamic>>> getAllArretsLignes() async {
+    final response = await client
+        .from('arrets_lignes')
+        .select('*, stations(*), lignes(*)')
+        .order('ligne_id')
+        .order('ordre_passage');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get all ligne-station connections for specific lignes
+  Future<List<Map<String, dynamic>>> getArretsLignesForLignes(List<String> ligneIds) async {
+    final response = await client
+        .from('arrets_lignes')
+        .select('*, stations(*), lignes(*)')
+        .inFilter('ligne_id', ligneIds)
+        .order('ligne_id')
+        .order('ordre_passage');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get lignes that pass through both stations
+  Future<List<Map<String, dynamic>>> getLignesConnectingStations(
+    String stationId1,
+    String stationId2,
+  ) async {
+    // Get lignes for first station
+    final lignes1 = await client
+        .from('arrets_lignes')
+        .select('ligne_id')
+        .eq('station_id', stationId1);
+    
+    if (lignes1.isEmpty) return [];
+    
+    final ligneIds = (lignes1 as List).map((e) => e['ligne_id'] as String).toList();
+    
+    // Get lignes that also pass through second station
+    final response = await client
+        .from('arrets_lignes')
+        .select('*, lignes(*)')
+        .eq('station_id', stationId2)
+        .inFilter('ligne_id', ligneIds);
+    
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get stations near a coordinate (within radius in meters)
+  /// Note: This requires PostGIS function. Falls back to fetching all if not available.
+  Future<List<Map<String, dynamic>>> getStationsNearLocation(
+    double latitude,
+    double longitude, {
+    double radiusMeters = 1000,
+  }) async {
+    try {
+      // Try using PostGIS function if available
+      final response = await client.rpc(
+        'stations_within_radius',
+        params: {
+          'lat': latitude,
+          'lng': longitude,
+          'radius_meters': radiusMeters,
+        },
+      );
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      // Fallback: fetch all stations (filtering will be done client-side)
+      return getStations();
+    }
+  }
+
+  /// Get upcoming horaires for multiple stations at once
+  Future<List<Map<String, dynamic>>> getUpcomingHorairesForStations(
+    List<String> stationIds, {
+    int limitPerStation = 5,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+    final response = await client
+        .from('horaires')
+        .select('*, lignes(*), stations(*)')
+        .inFilter('station_id', stationIds)
+        .gte('heure_passage', now)
+        .order('heure_passage')
+        .limit(limitPerStation * stationIds.length);
+    return List<Map<String, dynamic>>.from(response);
+  }
 }
