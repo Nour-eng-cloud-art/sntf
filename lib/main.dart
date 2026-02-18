@@ -17,6 +17,7 @@ import 'package:sntf/ui/screen/home/home_page.dart';
 import 'package:sntf/ui/screen/home/policy.dart';
 import 'package:sntf/ui/screen/home/user_condition.dart';
 import 'package:sntf/ui/screen/routing/route_planning_screen.dart';
+import 'package:sntf/ui/screen/home/card_reduction.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -108,7 +109,7 @@ class MyAppState extends State<MyApp> {
         ),
       ],
       child: MaterialApp(
-        title: 'SNTF',
+        title: 'transDZ',
         debugShowCheckedModeBanner: false,
          
         // Apply light theme
@@ -146,6 +147,7 @@ class MyAppState extends State<MyApp> {
           '/signin': (context) => const Signin(),
           '/home': (context) => const HomePage(),
           '/route-planning': (context) => const RoutePlanningScreen(),
+          '/card-reduction': (context) => const CardReductionPage(),
           'FaQ': (context) => const FAQPage(),
           'Contact': (context) => const ContactPage(),
           'Conditions': (context) => const PolicyPage(),

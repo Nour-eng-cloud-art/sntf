@@ -271,6 +271,7 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 }
 
+// ignore: unused_element
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String value;

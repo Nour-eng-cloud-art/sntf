@@ -92,7 +92,7 @@ class RoutingService {
     );
 
     if (!existingEdge) {
-      (node.edges as List<StationEdge>).add(edge);
+      node.edges.add(edge);
     }
   }
 

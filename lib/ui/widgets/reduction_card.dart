@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-// Note: Assure-toi que les imports correspondent à ton projet
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/core/theme/app_text_styles.dart';
 
@@ -75,7 +74,6 @@ class _ReductionCardState extends State<ReductionCard> with SingleTickerProvider
           return Transform(
             transform: transform,
             alignment: Alignment.center,
-            // On utilise LayoutBuilder pour obtenir la largeur parente et la fixer au contenu
             child: angle < pi / 2
                 ? _buildFront() 
                 : Transform(

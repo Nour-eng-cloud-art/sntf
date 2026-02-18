@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 
-/// SNTF App Colors - Inspired by SNCF Connect
-/// A modern railway application color palette
+/// TransDZ App Colors - Modern Algerian Transport Theme
+/// A beautiful gold and blue color palette
 class AppColors {
   AppColors._();
 
   // ============== PRIMARY COLORS ==============
-  /// Primary brand color - Deep Purple/Violet (SNCF signature)
-  static const Color primary = Color(0xFF6E1E78);
-  static const Color primaryLight = Color(0xFF9C4DAA);
-  static const Color primaryDark = Color(0xFF4A0E52);
+  /// Primary brand color - Elegant Gold
+  static const Color primary = Color(0xFFD4AF37);
+  static const Color primaryLight = Color(0xFFE8CD6B);
+  static const Color primaryDark = Color(0xFFB8941F);
 
   // ============== SECONDARY COLORS ==============
-  /// Secondary accent color - Vibrant Pink/Magenta
-  static const Color secondary = Color(0xFFE4003A);
-  static const Color secondaryLight = Color(0xFFFF5A6E);
-  static const Color secondaryDark = Color(0xFFB0002E);
+  /// Secondary accent color - Sky Blue
+  static const Color secondary = Color(0xFF60A5FA);
+  static const Color secondaryLight = Color(0xFF93C5FD);
+  static const Color secondaryDark = Color(0xFF3B82F6);
 
   // ============== ACCENT COLORS ==============
-  /// Teal accent for highlights
-  static const Color accent = Color(0xFF00B5AD);
-  static const Color accentLight = Color(0xFF4DD0E1);
-  static const Color accentDark = Color(0xFF00838F);
+  /// Blue accent for highlights
+  static const Color accent = Color(0xFF60A5FA);
+  static const Color accentLight = Color(0xFF93C5FD);
+  static const Color accentDark = Color(0xFF2563EB);
 
   // ============== STATUS COLORS ==============
   /// Success - Green
@@ -74,16 +74,16 @@ class AppColors {
   static const Color darkOnSurfaceVariant = Color(0xFFB0B0B0);
 
   // ============== TRANSPORT SPECIFIC COLORS ==============
-  /// Train types
-  static const Color tgv = Color(0xFF6E1E78);
-  static const Color intercites = Color(0xFF00A7E1);
-  static const Color ter = Color(0xFF003DA5);
-  static const Color ouigo = Color(0xFF00B5AD);
+  /// Train types - Using gold and blue theme
+  static const Color tgv = Color(0xFFD4AF37);
+  static const Color intercites = Color(0xFF60A5FA);
+  static const Color ter = Color(0xFF3B82F6);
+  static const Color ouigo = Color(0xFFE8CD6B);
   
   /// Train type aliases for railway lines
-  static const Color trainTGV = Color(0xFF6E1E78);
-  static const Color trainTER = Color(0xFF003DA5);
-  static const Color trainIntercite = Color(0xFF00A7E1);
+  static const Color trainTGV = Color(0xFFD4AF37);
+  static const Color trainTER = Color(0xFF3B82F6);
+  static const Color trainIntercite = Color(0xFF60A5FA);
 
   /// Status indicators
   static const Color onTime = Color(0xFF2E7D32);

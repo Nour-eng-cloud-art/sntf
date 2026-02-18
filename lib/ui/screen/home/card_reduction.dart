@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/core/theme/app_text_styles.dart';
 import 'package:sntf/ui/widgets/animated_text_field.dart';
 import 'package:sntf/ui/widgets/reduction_card.dart';
-import 'package:sntf/data/models/cardmodel.dart';
-
-
+import 'package:sntf/data/services/supabase_service.dart';
+import 'package:sntf/providers/auth_provider.dart';
 
 class CardReductionPage extends StatefulWidget {
   const CardReductionPage({super.key});
@@ -19,39 +19,9 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   
-  // 2. State: Manage the list of cards here
-  final List<CardModel> _cards = [
-    CardModel(
-      title: "Carte Abonnement",
-      subtitle: "Navette Alger - Zeralda",
-      price: "1 500 DZD/mois",
-      expiryDate: "Exp: 12/2026",
-      gradient: AppColors.primaryGradient,
-      clientId: "ABO001",
-      clientName: "Ali Mohamed",
-      cardType: "Abonnement",
-    ),
-    CardModel(
-      title: "Carte Étudiant",
-      subtitle: "Réduction -50% Grandes Lignes",
-      price: "Gratuit",
-      expiryDate: "Exp: 09/2026",
-      gradient: AppColors.secondaryGradient,
-      clientId: "ETU001",
-      clientName: "Ahmed Benali",
-      cardType: "Étudiant",
-    ),
-    CardModel(
-      title: "Carte Senior",
-      subtitle: "Retraité SNTF",
-      price: "500 DZD/an",
-      expiryDate: "Exp: 01/2027",
-      gradient: AppColors.accentGradient,
-      clientId: "SENIOR001",
-      clientName: "Fatima Zohra",
-      cardType: "Senior",
-    ),
-  ];
+  List<Map<String, dynamic>> _abonnements = [];
+  List<Map<String, dynamic>> _manualCards = []; // Cards added by ID
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -64,6 +34,108 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
+    _loadAbonnements();
+  }
+
+  Future<void> _loadAbonnements() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (!authProvider.isAuthenticated || authProvider.userId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+    
+    try {
+      final abonnements = await SupabaseService().getAbonnementsForUser(authProvider.userId!);
+      setState(() {
+        _abonnements = abonnements;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur de chargement: $e')),
+        );
+      }
+    }
+  }
+
+  String _getDisplayType(String? type) {
+    if (type == null) return 'STANDARD';
+    switch (type.toLowerCase()) {
+      case 'sntf_1_day_pass': return 'Pass Journalier';
+      case 'sntf_weekly_pass': return 'Pass Hebdomadaire';
+      case 'sntf_monthly_pass': return 'Pass Mensuel';
+      case 'university_reduce_tram': return 'Étudiant';
+      case 'bus_tram': return 'Bus + Tram';
+      case 'children_reduce_tram_bus': return 'Enfant';
+      case 'airport_reduce_tram_bus': return 'Navette Aéroport';
+      default: return type;
+    }
+  }
+
+  LinearGradient _getGradientForType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'sntf_1_day_pass':
+        return const LinearGradient(
+          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'sntf_weekly_pass':
+        return const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'sntf_monthly_pass':
+        return const LinearGradient(
+          colors: [Color(0xFFD4AF37), Color(0xFFB8941F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'university_reduce_tram':
+        return const LinearGradient(
+          colors: [Color(0xFF60A5FA), Color(0xFF3B82F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'bus_tram':
+        return const LinearGradient(
+          colors: [Color(0xFF14B8A6), Color(0xFF0D9488)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'children_reduce_tram_bus':
+        return const LinearGradient(
+          colors: [Color(0xFFF472B6), Color(0xFFEC4899)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      case 'airport_reduce_tram_bus':
+        return const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+      default:
+        return const LinearGradient(
+          colors: [Color(0xFFD4AF37), Color(0xFF60A5FA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        );
+    }
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return 'N/A';
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    } catch (_) {
+      return dateStr;
+    }
   }
 
   @override
@@ -72,18 +144,15 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
     super.dispose();
   }
 
-  void _addNewCard(String cardNumber) {
+  void _addManualCard(String cardId) {
     setState(() {
-      _cards.add(CardModel(
-        title: "Nouvelle Carte",
-        subtitle: "Ajouté récemment",
-        price: "N/A",
-        expiryDate: "Exp: 12/2030",
-        gradient: AppColors.primaryGradient,
-        clientId: cardNumber,
-        clientName: "Utilisateur",
-        cardType: "Standard",
-      ));
+      _manualCards.add({
+        'id': cardId,
+        'type': 'standard',
+        'date_debut': DateTime.now().toIso8601String().split('T')[0],
+        'date_fin': DateTime.now().add(const Duration(days: 365)).toIso8601String().split('T')[0],
+        'is_manual': true,
+      });
     });
   }
 
@@ -91,6 +160,8 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final authProvider = Provider.of<AuthProvider>(context);
+    final allCards = [..._abonnements, ..._manualCards];
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -146,24 +217,38 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
               const SizedBox(height: 24),
               // Cards list
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: _cards.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 20),
-                  itemBuilder: (context, index) {
-                    final card = _cards[index];
-                    return ReductionCard(
-                      title: card.title,
-                      subtitle: card.subtitle,
-                      price: card.price,
-                      expiryDate: card.expiryDate,
-                      gradient: card.gradient,
-                      clientId: card.clientId,
-                      clientName: card.clientName,
-                      cardType: card.cardType,
-                    );
-                  },
-                ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : allCards.isEmpty
+                        ? _buildEmptyState(theme)
+                        : RefreshIndicator(
+                            onRefresh: _loadAbonnements,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              itemCount: allCards.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 20),
+                              itemBuilder: (context, index) {
+                                final card = allCards[index];
+                                final type = card['type']?.toString() ?? 'standard';
+                                final isManual = card['is_manual'] == true;
+                                
+                                return ReductionCard(
+                                  title: isManual 
+                                      ? 'Carte Station' 
+                                      : _getDisplayType(type),
+                                  subtitle: isManual
+                                      ? 'Ajouté manuellement'
+                                      : 'Abonnement transDZ',
+                                  price: isManual ? 'N/A' : 'Actif',
+                                  expiryDate: 'Exp: ${_formatDate(card['date_fin'])}',
+                                  gradient: _getGradientForType(type),
+                                  clientId: card['id']?.toString().substring(0, 8).toUpperCase() ?? 'N/A',
+                                  clientName: authProvider.user?.prenom ?? 'Utilisateur',
+                                  cardType: _getDisplayType(type),
+                                );
+                              },
+                            ),
+                          ),
               ),
             ],
           ),
@@ -171,9 +256,39 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddCardSheet(context),
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.primary,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            LucideIcons.creditCard,
+            size: 80,
+            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Aucune carte',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Achetez un abonnement ou ajoutez\nune carte avec son ID',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -191,7 +306,7 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
         ),
         child: AddCardForm(onCardAdded: (cardNumber) {
           Navigator.pop(ctx); 
-          _addNewCard(cardNumber); 
+          _addManualCard(cardNumber); 
           _showSuccessDialog();
         }),
       ),

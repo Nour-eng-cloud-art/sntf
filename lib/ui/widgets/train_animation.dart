@@ -157,12 +157,8 @@ class _AnimatedLogoState extends State<AnimatedLogo>
             width: widget.size,
             height: widget.size,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(widget.size * 0.3),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(widget.size * 0.2),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withValues(alpha: 0.4),
@@ -171,16 +167,20 @@ class _AnimatedLogoState extends State<AnimatedLogo>
                 ),
               ],
             ),
-            child: Icon(
-              Icons.train_rounded,
-              size: widget.size * 0.6,
-              color: Colors.white,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(widget.size * 0.2),
+              child: Image.asset(
+                'images/TransDZ_with_background_white-removebg-preview.png',
+                width: widget.size,
+                height: widget.size,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           if (widget.showText) ...[
             const SizedBox(height: 20),
             Text(
-              'SNTF',
+              'transDZ',
               style: theme.textTheme.headlineLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: 4,

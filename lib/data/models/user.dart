@@ -1,26 +1,21 @@
-// Enum pour savoir qui est connecté
 enum UserRole { client, chauffeur, controleur }
 
-// Genre de l'utilisateur
 enum Genre { homme, femme, autre, nonSpecifie }
 
-// Type de carte de réduction
 enum CarteReduction { 
   aucune,
-  jeune,       // Carte jeune (< 26 ans)
-  senior,      // Carte senior (> 60 ans)
-  famille,     // Carte famille nombreuse
-  handicape,   // Carte handicapé
-  militaire,   // Carte militaire
-  etudiant,    // Carte étudiant
+  jeune,       
+  senior,      
+  famille,     
+  handicape,   
+  militaire,   
+  etudiant,    
 }
 
-// Type de document d'identité
 enum TypeDocument { cin, passeport, permisConduire }
 
-/// User profile from Supabase profiles table
 class AppUser {
-  final String id; // L'ID unique de Supabase (auth.uid)
+  final String id; 
   final String? email;
   final String? nom;
   final String? prenom;
@@ -141,7 +136,6 @@ class Chauffeur {
   }
 }
 
-/// Controleur (Inspector) - linked to profiles table
 class Controleur {
   final String id; // Same as profile id
   final String matricule;
@@ -175,12 +169,10 @@ class Controleur {
   }
 }
 
-/// Client voyageur - Utilisateur de l'application SNTF
 class Client {
   final String id;
-  final String userId; // Lien vers AppUser
+  final String userId; 
   
-  // Informations personnelles
   final String telephone;
   final DateTime? dateNaissance;
   final Genre genre;
@@ -189,20 +181,17 @@ class Client {
   final String? codePostal;
   final String? wilaya;
   
-  // Document d'identité
+  
   final TypeDocument? typeDocument;
   final String? numeroDocument;
   
-  // Préférences de voyage
   final CarteReduction carteReduction;
   final String? numeroCarteReduction;
   final bool notificationsActives;
   final bool emailsPromotionnels;
   
-  // Gares favorites
   final List<String>? garesFavorites;
   
-  // Informations de fidélité
   final int pointsFidelite;
   final DateTime dateInscription;
 

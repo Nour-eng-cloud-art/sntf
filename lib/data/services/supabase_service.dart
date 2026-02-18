@@ -597,4 +597,15 @@ class SupabaseService {
         .limit(limitPerStation * stationIds.length);
     return List<Map<String, dynamic>>.from(response);
   }
+
+  Future<List<Map<String, dynamic>>> getPriceServices() async {
+    // 1. Await the response from the database
+    final List<dynamic> response = await SupabaseService().client
+        .from('prices_service')
+        .select(); // No need for '*' as it's the default in newer versions
+
+    // 2. Cast the response to the specific List of Maps required
+    return List<Map<String, dynamic>>.from(response);
+  }
 }
+
