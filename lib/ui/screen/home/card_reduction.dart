@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/core/theme/app_text_styles.dart';
 import 'package:sntf/ui/widgets/animated_text_field.dart';
@@ -156,6 +157,125 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
     });
   }
 
+  void _showQRCodeDialog(BuildContext context, Map<String, dynamic> card, AuthProvider authProvider) {
+    final user = authProvider.user;
+    final qrData = {
+      'membership_id': card['id']?.toString() ?? '',
+      'user_id': authProvider.userId ?? '',
+      'user_name': user?.fullName ?? '',
+      'user_email': user?.email ?? '',
+      'card_type': card['type']?.toString() ?? 'standard',
+      'date_debut': card['date_debut'] ?? '',
+      'date_fin': card['date_fin'] ?? '',
+      'status': 'active',
+    };
+    
+    final qrString = qrData.entries.map((e) => '${e.key}:${e.value}').join('|');
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'QR Code Abonnement',
+                    style: AppTextStyles.titleLarge.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(LucideIcons.x),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: PrettyQrView.data(
+                  data: qrString,
+                  decoration: const PrettyQrDecoration(
+                    shape: PrettyQrSmoothSymbol(
+                      color: Color(0xFFD4AF37),
+                    ),
+                    image: PrettyQrDecorationImage(
+                      image: AssetImage('images/TransDZ_with_background_white-removebg-preview.png'),
+                      position: PrettyQrDecorationImagePosition.embedded,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    _buildInfoRow('ID Carte', card['id']?.toString().substring(0, 8).toUpperCase() ?? 'N/A'),
+                    const SizedBox(height: 8),
+                    _buildInfoRow('Type', _getDisplayType(card['type']?.toString())),
+                    const SizedBox(height: 8),
+                    _buildInfoRow('Utilisateur', user?.fullName ?? 'N/A'),
+                    const SizedBox(height: 8),
+                    _buildInfoRow('Valide jusqu\'au', _formatDate(card['date_fin'])),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Présentez ce QR code au contrôleur',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: AppColors.grey600,
+            fontSize: 14,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -232,19 +352,26 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
                                 final type = card['type']?.toString() ?? 'standard';
                                 final isManual = card['is_manual'] == true;
                                 
-                                return ReductionCard(
-                                  title: isManual 
-                                      ? 'Carte Station' 
-                                      : _getDisplayType(type),
-                                  subtitle: isManual
-                                      ? 'Ajouté manuellement'
-                                      : 'Abonnement transDZ',
-                                  price: isManual ? 'N/A' : 'Actif',
-                                  expiryDate: 'Exp: ${_formatDate(card['date_fin'])}',
-                                  gradient: _getGradientForType(type),
-                                  clientId: card['id']?.toString().substring(0, 8).toUpperCase() ?? 'N/A',
-                                  clientName: authProvider.user?.prenom ?? 'Utilisateur',
-                                  cardType: _getDisplayType(type),
+                                return GestureDetector(
+                                  onLongPress: () => _showQRCodeDialog(
+                                    context,
+                                    card,
+                                    authProvider,
+                                  ),
+                                  child: ReductionCard(
+                                    title: isManual 
+                                        ? 'Carte Station' 
+                                        : _getDisplayType(type),
+                                    subtitle: isManual
+                                        ? 'Ajouté manuellement'
+                                        : 'Abonnement transDZ',
+                                    price: isManual ? 'N/A' : 'Actif',
+                                    expiryDate: 'Exp: ${_formatDate(card['date_fin'])}',
+                                    gradient: _getGradientForType(type),
+                                    clientId: card['id']?.toString().substring(0, 8).toUpperCase() ?? 'N/A',
+                                    clientName: authProvider.user?.prenom ?? 'Utilisateur',
+                                    cardType: _getDisplayType(type),
+                                  ),
                                 );
                               },
                             ),
