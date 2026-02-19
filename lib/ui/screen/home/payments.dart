@@ -14,11 +14,12 @@ class PaymentPage extends StatefulWidget {
   State<PaymentPage> createState() => _PaymentPageState();
 }
 
-class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStateMixin {
+class _PaymentPageState extends State<PaymentPage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late PageController _pageController;
-  
+
   int _selectedMethod = 0;
   int _currentCardIndex = 0;
   bool _isLoading = true;
@@ -43,7 +44,7 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
   Future<void> _loadServices() async {
     try {
       final services = await SupabaseService().getPriceServices();
-    
+
       setState(() {
         _services = services;
         _isLoading = false;
@@ -51,9 +52,9 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur de chargement: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur de chargement: $e')));
       }
     }
   }
@@ -68,14 +69,22 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
   String _getDisplayType(String? type) {
     if (type == null) return 'STANDARD';
     switch (type.toLowerCase()) {
-      case 'sntf_1_day_pass': return 'JOURNALIER';
-      case 'sntf_weekly_pass': return 'HEBDO';
-      case 'sntf_monthly_pass': return 'MENSUEL';
-      case 'university_reduce_tram': return 'ÉTUDIANT';
-      case 'bus_tram': return 'BUS+TRAM';
-      case 'children_reduce_tram_bus': return 'ENFANT';
-      case 'airport_reduce_tram_bus': return 'AÉROPORT';
-      default: return type.toUpperCase();
+      case 'sntf_1_day_pass':
+        return 'JOURNALIER';
+      case 'sntf_weekly_pass':
+        return 'HEBDO';
+      case 'sntf_monthly_pass':
+        return 'MENSUEL';
+      case 'university_reduce_tram':
+        return 'ÉTUDIANT';
+      case 'bus_tram':
+        return 'BUS+TRAM';
+      case 'children_reduce_tram_bus':
+        return 'ENFANT';
+      case 'airport_reduce_tram_bus':
+        return 'AÉROPORT';
+      default:
+        return type.toUpperCase();
     }
   }
 
@@ -157,7 +166,7 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: FadeTransition(
@@ -181,7 +190,9 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                                    color: isDark
+                                        ? AppColors.darkSurfaceVariant
+                                        : AppColors.grey100,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
@@ -209,21 +220,27 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                         ],
                       ),
                     ),
-                    
+
                     // Swipeable Cards
                     _services.isEmpty
                         ? Container(
                             height: 280,
                             margin: const EdgeInsets.symmetric(horizontal: 20),
                             decoration: BoxDecoration(
-                              color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                              color: isDark
+                                  ? AppColors.darkSurfaceVariant
+                                  : AppColors.grey100,
                               borderRadius: BorderRadius.circular(24),
                             ),
                             child: Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(LucideIcons.ticketX, size: 48, color: AppColors.grey400),
+                                  Icon(
+                                    LucideIcons.ticketX,
+                                    size: 48,
+                                    color: AppColors.grey400,
+                                  ),
                                   const SizedBox(height: 16),
                                   Text(
                                     'Aucun abonnement disponible',
@@ -243,11 +260,16 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                               },
                               itemBuilder: (context, index) {
                                 final service = _services[index];
-                                return _buildSubscriptionCard(service, index, isDark, theme);
+                                return _buildSubscriptionCard(
+                                  service,
+                                  index,
+                                  isDark,
+                                  theme,
+                                );
                               },
                             ),
                           ),
-                    
+
                     // Page Indicator
                     const SizedBox(height: 16),
                     Row(
@@ -268,9 +290,9 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Payment Section
                     Expanded(
                       child: SingleChildScrollView(
@@ -304,7 +326,7 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                               theme: theme,
                             ),
                             const SizedBox(height: 20),
-                            
+
                             // Pay Button
                             if (_services.isNotEmpty) _buildPayButton(theme),
                             const SizedBox(height: 30),
@@ -319,12 +341,17 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildSubscriptionCard(Map<String, dynamic> service, int index, bool isDark, ThemeData theme) {
+  Widget _buildSubscriptionCard(
+    Map<String, dynamic> service,
+    int index,
+    bool isDark,
+    ThemeData theme,
+  ) {
     final isSelected = _currentCardIndex == index;
     final serviceType = service['type'] as String?;
     final gradient = _getGradientForType(serviceType);
     final icon = _getIconForType(serviceType);
-    
+
     return AnimatedScale(
       scale: isSelected ? 1.0 : 0.9,
       duration: const Duration(milliseconds: 300),
@@ -356,7 +383,7 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                   color: Colors.white.withOpacity(0.1),
                 ),
               ),
-              
+
               // Content
               Padding(
                 padding: const EdgeInsets.all(24),
@@ -367,7 +394,10 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(20),
@@ -419,7 +449,10 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
@@ -471,8 +504,8 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
           ),
           boxShadow: [
             BoxShadow(
-              color: isDark 
-                  ? Colors.black.withOpacity(0.2) 
+              color: isDark
+                  ? Colors.black.withOpacity(0.2)
                   : AppColors.grey900.withOpacity(0.03),
               blurRadius: 10,
               offset: const Offset(0, 4),
@@ -494,8 +527,18 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTextStyles.titleMedium.copyWith(color: theme.colorScheme.onSurface)),
-                  Text(subtitle, style: AppTextStyles.bodySmall.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    title,
+                    style: AppTextStyles.titleMedium.copyWith(
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -516,17 +559,14 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
   Widget _buildPayButton(ThemeData theme) {
     final currentService = _services[_currentCardIndex];
     final price = currentService['price'] ?? 0;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -572,7 +612,9 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
                     )
                   : Text(
                       "Confirmer le paiement",
-                      style: AppTextStyles.buttonLarge.copyWith(color: Colors.white),
+                      style: AppTextStyles.buttonLarge.copyWith(
+                        color: Colors.white,
+                      ),
                     ),
             ),
           ),
@@ -583,44 +625,44 @@ class _PaymentPageState extends State<PaymentPage> with SingleTickerProviderStat
 
   Future<void> _processPayment() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     if (!authProvider.isAuthenticated || authProvider.userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez vous connecter pour continuer')),
       );
       return;
     }
-    
+
     setState(() => _isProcessing = true);
-    
+
     try {
       final currentService = _services[_currentCardIndex];
       final serviceType = currentService['type'] as String?;
       final now = DateTime.now();
       final endDate = now.add(const Duration(days: 365)); // 1 year subscription
-      
+
       final abonnement = {
         'user_id': authProvider.userId,
         'type': serviceType,
         'date_debut': now.toIso8601String().split('T')[0],
         'date_fin': endDate.toIso8601String().split('T')[0],
       };
-      
+
       await SupabaseService().createAbonnement(abonnement);
-      
+
       setState(() => _isProcessing = false);
       _showConfirmation(currentService);
     } catch (e) {
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
     }
   }
 
   void _showConfirmation(Map<String, dynamic> service) {
     final theme = Theme.of(context);
-    
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(

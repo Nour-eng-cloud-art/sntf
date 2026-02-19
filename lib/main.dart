@@ -18,6 +18,7 @@ import 'package:sntf/ui/screen/home/policy.dart';
 import 'package:sntf/ui/screen/home/user_condition.dart';
 import 'package:sntf/ui/screen/routing/route_planning_screen.dart';
 import 'package:sntf/ui/screen/home/card_reduction.dart';
+import 'package:sntf/ui/screen/home/penaties.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -148,6 +149,7 @@ class MyAppState extends State<MyApp> {
           '/home': (context) => const HomePage(),
           '/route-planning': (context) => const RoutePlanningScreen(),
           '/card-reduction': (context) => const CardReductionPage(),
+          '/penalties': (context) => const PenaltiesPage(),
           'FaQ': (context) => const FAQPage(),
           'Contact': (context) => const ContactPage(),
           'Conditions': (context) => const PolicyPage(),

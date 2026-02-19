@@ -6,6 +6,7 @@ import 'package:sntf/main.dart';
 import 'package:sntf/providers/auth_provider.dart';
 import 'package:sntf/ui/screen/home/card_reduction.dart';
 import 'package:sntf/ui/screen/home/payments.dart';
+import 'package:sntf/ui/screen/home/penaties.dart';
 import 'package:sntf/ui/screen/home/personal_info.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -22,7 +23,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final isDark = theme.brightness == Brightness.dark;
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
-    
+
     final fullName = user?.fullName ?? 'Utilisateur';
     final email = user?.email ?? '';
     final initials = _getInitials(fullName);
@@ -32,7 +33,6 @@ class _ProfileTabState extends State<ProfileTab> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
         child: Column(
-          
           children: [
             Container(
               width: MediaQuery.widthOf(context),
@@ -99,21 +99,48 @@ class _ProfileTabState extends State<ProfileTab> {
                   icon: LucideIcons.user,
                   label: 'Informations personnelles',
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalInfoPage()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PersonalInfoPage(),
+                      ),
+                    );
                   },
                 ),
                 _MenuItem(
                   icon: LucideIcons.creditCard,
                   label: 'Cartes de réduction',
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const CardReductionPage()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CardReductionPage(),
+                      ),
+                    );
                   },
                 ),
                 _MenuItem(
                   icon: LucideIcons.wallet,
                   label: 'Moyens de paiement',
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentPage()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PaymentPage(),
+                      ),
+                    );
+                  },
+                ),
+                _MenuItem(
+                  icon: LucideIcons.coins,
+                  label: 'Pénalités',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PenaltiesPage(),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -196,7 +223,9 @@ class _ProfileTabState extends State<ProfileTab> {
                   style: TextStyle(color: AppColors.error),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                  side: BorderSide(
+                    color: AppColors.error.withValues(alpha: 0.5),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -224,9 +253,7 @@ class _ProfileTabState extends State<ProfileTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Déconnexion'),
         content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
         actions: [
@@ -234,16 +261,23 @@ class _ProfileTabState extends State<ProfileTab> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Annuler',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
               await authProvider.signOut();
               if (context.mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -354,7 +388,9 @@ class _MenuSection extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurfaceVariant : AppColors.lightSurface,
+            color: isDark
+                ? AppColors.darkSurfaceVariant
+                : AppColors.lightSurface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -369,7 +405,7 @@ class _MenuSection extends StatelessWidget {
               final index = entry.key;
               final item = entry.value;
               final isLast = index == items.length - 1;
-              
+
               return Column(
                 children: [
                   item,

@@ -607,5 +607,15 @@ class SupabaseService {
     // 2. Cast the response to the specific List of Maps required
     return List<Map<String, dynamic>>.from(response);
   }
+
+  Future<List<Map<String, dynamic>>> getPenalities(String userId) async {
+    final response = await SupabaseService().client
+        .from('amendes')
+        .select('*, controleurs(*, profiles(*))')
+        .eq('user_id', userId)
+        .order('date_emission', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
 }
 
