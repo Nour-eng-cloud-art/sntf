@@ -5,7 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/services/places_service.dart';
-import 'package:sntf/ui/screen/map/full_screen_map_picker.dart';
+import 'package:sntf/data/services/supabase_service.dart';
 
 class MapTab extends StatefulWidget {
   const MapTab({super.key});
@@ -16,17 +16,37 @@ class MapTab extends StatefulWidget {
 
 class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
-  bool _showStationsList = false;
-  String? _selectedStation;
+  final SupabaseService _supabaseService = SupabaseService();
+  
   bool _isMapReady = false;
-  String? _selectedLocationName;
-  LatLng? _selectedLocation;
   String? _apiKey;
+  
+  // Route planning state
+  Map<String, dynamic>? _startStation;
+  Map<String, dynamic>? _endStation;
+  List<Map<String, dynamic>> _availableStations = [];
+  List<Map<String, dynamic>> _foundRoutes = [];
+  bool _isSearching = false;
+  bool _showStationPicker = false;
+  bool _isSelectingStart = true;
+  String _stationSearchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _apiKey = dotenv.env['MAP_TILER_API_KEY'];
+    _loadStations();
+  }
+
+  Future<void> _loadStations() async {
+    try {
+      final stations = await _supabaseService.getStationsWithCoordinates();
+      setState(() {
+        _availableStations = stations;
+      });
+    } catch (e) {
+      debugPrint('Error loading stations: $e');
+    }
   }
 
   /// Animate map to a location
@@ -35,160 +55,286 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     _mapController.move(destLocation, destZoom);
   }
 
-  /// Open location picker - restricted to Oran city
-  void _openLocationPicker() async {
-    // Oran city center coordinates
-    const oranCenter = LatLng(35.6969, -0.6331);
+  /// Search for connecting routes
+  Future<void> _searchRoutes() async {
+    if (_startStation == null || _endStation == null) return;
     
-    final result = await FullScreenMapPicker.show(
-      context,
-      initialPosition: _selectedLocation ?? oranCenter,
-      title: 'Rechercher un lieu à Oran',
-      selectButtonText: 'Sélectionner ce lieu',
-      primaryColor: AppColors.primary,
-      searchCenterOverride: oranCenter,
-      searchRadius: 15000, // 15km radius - Oran city area
-    );
+    setState(() {
+      _isSearching = true;
+      _foundRoutes = [];
+    });
     
-    if (result != null) {
+    try {
+      final routes = await _supabaseService.findConnectingLignes(
+        _startStation!['id'].toString(),
+        _endStation!['id'].toString(),
+      );
+      
       setState(() {
-        _selectedLocation = result.latLng;
-        _selectedLocationName = result.addressData['display_name'] ?? result.address;
+        _foundRoutes = routes;
+        _isSearching = false;
       });
-      _animateMapTo(result.latLng, 15.0);
+      
+      // Fit map to show the route
+      if (routes.isNotEmpty) {
+        _fitMapToRoute();
+      }
+    } catch (e) {
+      debugPrint('Error searching routes: $e');
+      setState(() {
+        _isSearching = false;
+      });
     }
   }
 
-  final List<_Station> _stations = [
-    _Station(
-      name: 'Gare d\'Alger',
-      city: 'Alger',
-      position: const LatLng(36.7753, 3.0601),
-      lines: ['Ligne Alger-Oran', 'Ligne Alger-Constantine'],
-    ),
-    _Station(
-      name: 'Gare d\'Oran',
-      city: 'Oran',
-      position: const LatLng(35.6987, -0.6349),
-      lines: ['Ligne Alger-Oran', 'Ligne Oran-Tlemcen'],
-    ),
-    _Station(
-      name: 'Gare de Constantine',
-      city: 'Constantine',
-      position: const LatLng(36.3650, 6.6147),
-      lines: ['Ligne Alger-Constantine', 'Ligne Constantine-Annaba'],
-    ),
-    _Station(
-      name: 'Gare d\'Annaba',
-      city: 'Annaba',
-      position: const LatLng(36.9000, 7.7667),
-      lines: ['Ligne Constantine-Annaba'],
-    ),
-    _Station(
-      name: 'Gare de Sétif',
-      city: 'Sétif',
-      position: const LatLng(36.1898, 5.4108),
-      lines: ['Ligne Alger-Constantine'],
-    ),
-    _Station(
-      name: 'Gare de Blida',
-      city: 'Blida',
-      position: const LatLng(36.4703, 2.8277),
-      lines: ['Ligne Alger-Oran'],
-    ),
-    _Station(
-      name: 'Gare de Béjaïa',
-      city: 'Béjaïa',
-      position: const LatLng(36.7509, 5.0567),
-      lines: ['Ligne Béni Mansour-Béjaïa'],
-    ),
-    _Station(
-      name: 'Gare de Tlemcen',
-      city: 'Tlemcen',
-      position: const LatLng(34.8828, -1.3167),
-      lines: ['Ligne Oran-Tlemcen'],
-    ),
-  ];
-
-  Set<Marker> _buildMarkers() {
-    final markers = <Marker>{};
+  /// Fit map to show all points of the route
+  void _fitMapToRoute() {
+    if (!_isMapReady) return;
     
-    // Station markers
-    for (final station in _stations) {
-      final isSelected = _selectedStation == station.name;
-      markers.add(
-        Marker(
-          point: station.position,
-          width: 50,
-          height: 50,
-          child: GestureDetector(
-            onTap: () {
-              setState(() => _selectedStation = station.name);
-              if (_isMapReady) {
-                _animateMapTo(station.position, 12);
-              }
-            },
-            child: Icon(
-              LucideIcons.trainFront,
-              color: isSelected ? AppColors.primary : AppColors.primaryDark,
-              size: isSelected ? 32 : 28,
-            ),
-          ),
+    final points = <LatLng>[];
+    
+    if (_startStation != null) {
+      final lat = _startStation!['latitude'];
+      final lng = _startStation!['longitude'];
+      if (lat != null && lng != null) {
+        points.add(LatLng(lat.toDouble(), lng.toDouble()));
+      }
+    }
+    
+    if (_endStation != null) {
+      final lat = _endStation!['latitude'];
+      final lng = _endStation!['longitude'];
+      if (lat != null && lng != null) {
+        points.add(LatLng(lat.toDouble(), lng.toDouble()));
+      }
+    }
+    
+    if (points.length >= 2) {
+      final bounds = LatLngBounds.fromPoints(points);
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: bounds,
+          padding: const EdgeInsets.all(80),
         ),
       );
     }
+  }
+
+  /// Open station picker
+  void _openStationPicker(bool isStart) {
+    setState(() {
+      _showStationPicker = true;
+      _isSelectingStart = isStart;
+      _stationSearchQuery = '';
+    });
+  }
+
+  /// Select a station
+  void _selectStation(Map<String, dynamic> station) {
+    setState(() {
+      if (_isSelectingStart) {
+        _startStation = station;
+      } else {
+        _endStation = station;
+      }
+      _showStationPicker = false;
+      _foundRoutes = [];
+    });
     
-    // Selected location marker
-    if (_selectedLocation != null) {
-      markers.add(
-        Marker(
-          point: _selectedLocation!,
-          width: 50,
-          height: 50,
-          child: Icon(
-            LucideIcons.mapPin,
-            color: AppColors.error,
-            size: 32,
+    // Auto-search when both stations are selected
+    if (_startStation != null && _endStation != null) {
+      _searchRoutes();
+    }
+  }
+
+  /// Clear route
+  void _clearRoute() {
+    setState(() {
+      _startStation = null;
+      _endStation = null;
+      _foundRoutes = [];
+    });
+  }
+
+  /// Swap start and end stations
+  void _swapStations() {
+    setState(() {
+      final temp = _startStation;
+      _startStation = _endStation;
+      _endStation = temp;
+      _foundRoutes = [];
+    });
+    
+    if (_startStation != null && _endStation != null) {
+      _searchRoutes();
+    }
+  }
+
+  List<Marker> _buildMarkers() {
+    final markers = <Marker>[];
+    
+    // Start station marker
+    if (_startStation != null) {
+      final lat = _startStation!['latitude'];
+      final lng = _startStation!['longitude'];
+      if (lat != null && lng != null) {
+        markers.add(
+          Marker(
+            point: LatLng(lat.toDouble(), lng.toDouble()),
+            width: 50,
+            height: 50,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                LucideIcons.mapPin,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
           ),
-        ),
-      );
+        );
+      }
+    }
+    
+    // End station marker
+    if (_endStation != null) {
+      final lat = _endStation!['latitude'];
+      final lng = _endStation!['longitude'];
+      if (lat != null && lng != null) {
+        markers.add(
+          Marker(
+            point: LatLng(lat.toDouble(), lng.toDouble()),
+            width: 50,
+            height: 50,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                LucideIcons.flag,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    
+    // Station markers along routes
+    for (final route in _foundRoutes) {
+      final stations = route['stations'] as List?;
+      if (stations == null) continue;
+      
+      for (final stop in stations) {
+        final station = stop['stations'] as Map<String, dynamic>?;
+        if (station == null) continue;
+        
+        final lat = station['latitude'];
+        final lng = station['longitude'];
+        if (lat == null || lng == null) continue;
+        
+        // Skip if it's start or end station
+        if (_startStation != null && station['id'] == _startStation!['id']) continue;
+        if (_endStation != null && station['id'] == _endStation!['id']) continue;
+        
+        markers.add(
+          Marker(
+            point: LatLng(lat.toDouble(), lng.toDouble()),
+            width: 30,
+            height: 30,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2),
+              ),
+              child: Icon(
+                LucideIcons.circle,
+                color: AppColors.primary,
+                size: 12,
+              ),
+            ),
+          ),
+        );
+      }
     }
     
     return markers;
   }
 
   List<Polyline> _buildPolylines() {
-    return [
-      // Alger - Oran line
-      Polyline(
-        points: const [
-          LatLng(36.7753, 3.0601), // Alger
-          LatLng(36.4703, 2.8277), // Blida
-          LatLng(35.6987, -0.6349), // Oran
-        ],
-        color: AppColors.trainTGV,
-        strokeWidth: 3,
-      ),
-      // Alger - Constantine line
-      Polyline(
-        points: const [
-          LatLng(36.7753, 3.0601), // Alger
-          LatLng(36.1898, 5.4108), // Sétif
-          LatLng(36.3650, 6.6147), // Constantine
-        ],
-        color: AppColors.trainTER,
-        strokeWidth: 3,
-      ),
-      // Constantine - Annaba line
-      Polyline(
-        points: const [
-          LatLng(36.3650, 6.6147), // Constantine
-          LatLng(36.9000, 7.7667), // Annaba
-        ],
-        color: AppColors.trainIntercite,
-        strokeWidth: 3,
-      ),
+    final polylines = <Polyline>[];
+    
+    final colors = [
+      AppColors.primary,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
     ];
+    
+    int colorIndex = 0;
+    
+    for (final route in _foundRoutes) {
+      final stations = route['stations'] as List?;
+      if (stations == null || stations.isEmpty) continue;
+      
+      final points = <LatLng>[];
+      
+      for (final stop in stations) {
+        final station = stop['stations'] as Map<String, dynamic>?;
+        if (station == null) continue;
+        
+        final lat = station['latitude'];
+        final lng = station['longitude'];
+        if (lat != null && lng != null) {
+          points.add(LatLng(lat.toDouble(), lng.toDouble()));
+        }
+      }
+      
+      if (points.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: points,
+            color: colors[colorIndex % colors.length],
+            strokeWidth: 4,
+          ),
+        );
+        colorIndex++;
+      }
+    }
+    
+    return polylines;
+  }
+
+  List<Map<String, dynamic>> get _filteredStations {
+    if (_stationSearchQuery.isEmpty) {
+      return _availableStations;
+    }
+    return _availableStations.where((station) {
+      final name = station['nom']?.toString().toLowerCase() ?? '';
+      return name.contains(_stationSearchQuery.toLowerCase());
+    }).toList();
   }
 
   @override
@@ -212,8 +358,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               },
               onTap: (tapPosition, point) {
                 setState(() {
-                  _showStationsList = false;
-                  _selectedStation = null;
+                  _showStationPicker = false;
                 });
               },
             ),
@@ -223,7 +368,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 userAgentPackageName: 'com.sntf.app',
               ),
               PolylineLayer(polylines: _buildPolylines()),
-              MarkerLayer(markers: _buildMarkers().toList()),
+              MarkerLayer(markers: _buildMarkers()),
             ],
           )
         else
@@ -251,92 +396,173 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
 
-        // Top Bar - Search
+        // Route Planning Card
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: _openLocationPicker,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.darkSurface : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            LucideIcons.search,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              _selectedLocationName ?? 'Rechercher un lieu...',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: _selectedLocationName != null
-                                    ? theme.colorScheme.onSurface
-                                    : theme.colorScheme.onSurfaceVariant,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (_selectedLocationName != null)
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedLocationName = null;
-                                  _selectedLocation = null;
-                                });
-                              },
-                              child: Icon(
-                                LucideIcons.x,
-                                color: theme.colorScheme.onSurfaceVariant,
-                                size: 18,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => setState(() => _showStationsList = !_showStationsList),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _showStationsList
-                          ? AppColors.primary
-                          : (isDark ? AppColors.darkSurface : Colors.white),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Start Point
+                  _buildStationInput(
+                    label: 'Départ',
+                    station: _startStation,
+                    icon: LucideIcons.circleDot,
+                    color: Colors.green,
+                    onTap: () => _openStationPicker(true),
+                    onClear: () => setState(() {
+                      _startStation = null;
+                      _foundRoutes = [];
+                    }),
+                    theme: theme,
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 8),
+                  // Swap button
+                  Row(
+                    children: [
+                      const SizedBox(width: 20),
+                      Container(
+                        height: 24,
+                        width: 2,
+                        decoration: BoxDecoration(
+                          color: AppColors.grey300,
+                          borderRadius: BorderRadius.circular(1),
                         ),
-                      ],
-                    ),
-                    child: Icon(
-                      LucideIcons.list,
-                      color: _showStationsList ? Colors.white : theme.colorScheme.onSurface,
-                    ),
+                      ),
+                      const Spacer(),
+                      if (_startStation != null && _endStation != null)
+                        GestureDetector(
+                          onTap: _swapStations,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              LucideIcons.arrowUpDown,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  // End Point
+                  _buildStationInput(
+                    label: 'Arrivée',
+                    station: _endStation,
+                    icon: LucideIcons.mapPin,
+                    color: Colors.red,
+                    onTap: () => _openStationPicker(false),
+                    onClear: () => setState(() {
+                      _endStation = null;
+                      _foundRoutes = [];
+                    }),
+                    theme: theme,
+                    isDark: isDark,
+                  ),
+                  // Found routes indicator
+                  if (_isSearching)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Recherche des lignes...',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.grey500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_foundRoutes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              LucideIcons.check,
+                              size: 16,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${_foundRoutes.length} ligne${_foundRoutes.length > 1 ? 's' : ''} trouvée${_foundRoutes.length > 1 ? 's' : ''}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (_startStation != null && _endStation != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              LucideIcons.messageCircleWarning,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Aucune ligne directe trouvée',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -344,7 +570,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         // Zoom Controls
         Positioned(
           right: 16,
-          bottom: 200,
+          bottom: _foundRoutes.isNotEmpty ? 280 : 120,
           child: Column(
             children: [
               _MapButton(
@@ -377,118 +603,326 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 icon: LucideIcons.locate,
                 onTap: () {
                   if (_isMapReady) {
-                    // Center on Oran
-                    _animateMapTo(const LatLng(35.6969, -0.6331), 10);
+                    _animateMapTo(const LatLng(35.6969, -0.6331), 13);
                   }
                 },
                 isDark: isDark,
               ),
+              if (_startStation != null || _endStation != null) ...[
+                const SizedBox(height: 8),
+                _MapButton(
+                  icon: LucideIcons.trash2,
+                  onTap: _clearRoute,
+                  isDark: isDark,
+                ),
+              ],
             ],
           ),
         ),
 
-        // Legend
-        Positioned(
-          left: 16,
-          bottom: 120,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                ),
-              ],
+        // Found Routes List
+        if (_foundRoutes.isNotEmpty)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.route,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Lignes disponibles',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: _foundRoutes.length,
+                      itemBuilder: (context, index) {
+                        final route = _foundRoutes[index];
+                        final ligne = route['ligne'] as Map<String, dynamic>;
+                        final stations = route['stations'] as List;
+                        final ligneColor = _parseColor(ligne['couleur']);
+                        
+                        return ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: ligneColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              ligne['nom_court'] ?? ligne['nom'] ?? 'Ligne',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            ligne['nom'] ?? 'Ligne ${index + 1}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${stations.length} arrêts',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.grey500,
+                            ),
+                          ),
+                          trailing: Icon(
+                            LucideIcons.chevronRight,
+                            size: 18,
+                            color: AppColors.grey400,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Lignes',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+          ),
+
+        // Station Picker Modal
+        if (_showStationPicker)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _showStationPicker = false),
+              child: Container(
+                color: Colors.black54,
+                child: GestureDetector(
+                  onTap: () {}, // Prevent tap through
+                  child: SafeArea(
+                    child: Container(
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurface : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _isSelectingStart ? LucideIcons.circleDot : LucideIcons.mapPin,
+                                  color: _isSelectingStart ? Colors.green : Colors.red,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _isSelectingStart ? 'Choisir le départ' : 'Choisir l\'arrivée',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Spacer(),
+                                GestureDetector(
+                                  onTap: () => setState(() => _showStationPicker = false),
+                                  child: const Icon(LucideIcons.x),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: TextField(
+                              onChanged: (value) => setState(() => _stationSearchQuery = value),
+                              decoration: InputDecoration(
+                                hintText: 'Rechercher une station...',
+                                prefixIcon: const Icon(LucideIcons.search, size: 20),
+                                filled: true,
+                                fillColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: _filteredStations.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          LucideIcons.searchX,
+                                          size: 48,
+                                          color: AppColors.grey400,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Aucune station trouvée',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: AppColors.grey500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    itemCount: _filteredStations.length,
+                                    itemBuilder: (context, index) {
+                                      final station = _filteredStations[index];
+                                      final isSelected = (_isSelectingStart && _startStation?['id'] == station['id']) ||
+                                          (!_isSelectingStart && _endStation?['id'] == station['id']);
+                                      
+                                      return ListTile(
+                                        onTap: () => _selectStation(station),
+                                        leading: Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? AppColors.primary.withOpacity(0.1)
+                                                : AppColors.grey100,
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Icon(
+                                            LucideIcons.mapPin,
+                                            color: isSelected ? AppColors.primary : AppColors.grey500,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          station['nom'] ?? 'Station',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            color: isSelected ? AppColors.primary : null,
+                                          ),
+                                        ),
+                                        trailing: isSelected
+                                            ? Icon(LucideIcons.check, color: AppColors.primary)
+                                            : null,
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                _LegendItem(color: AppColors.trainTGV, label: 'Alger-Oran'),
-                _LegendItem(color: AppColors.trainTER, label: 'Alger-Constantine'),
-                _LegendItem(color: AppColors.trainIntercite, label: 'Constantine-Annaba'),
-              ],
-            ),
-          ),
-        ),
-
-        // Station Info Card
-        if (_selectedStation != null)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _StationInfoCard(
-              station: _stations.firstWhere((s) => s.name == _selectedStation),
-              onClose: () => setState(() => _selectedStation = null),
-              isDark: isDark,
-            ),
-          ),
-
-        // Selected Location Info Card
-        if (_selectedLocation != null && _selectedStation == null)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _LocationInfoCard(
-              locationName: _selectedLocationName ?? 'Lieu sélectionné',
-              location: _selectedLocation!,
-              onClose: () => setState(() {
-                _selectedLocation = null;
-                _selectedLocationName = null;
-              }),
-              isDark: isDark,
-            ),
-          ),
-
-        // Stations List
-        if (_showStationsList)
-          Positioned(
-            top: 100,
-            left: 16,
-            right: 16,
-            bottom: 100,
-            child: _StationsList(
-              stations: _stations,
-              onStationTap: (station) {
-                setState(() {
-                  _selectedStation = station.name;
-                  _showStationsList = false;
-                });
-                if (_isMapReady) {
-                  _animateMapTo(station.position, 12);
-                }
-              },
-              isDark: isDark,
+              ),
             ),
           ),
       ],
     );
   }
-}
 
-class _Station {
-  final String name;
-  final String city;
-  final LatLng position;
-  final List<String> lines;
+  Widget _buildStationInput({
+    required String label,
+    required Map<String, dynamic>? station,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required VoidCallback onClear,
+    required ThemeData theme,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+          borderRadius: BorderRadius.circular(12),
+          border: station != null
+              ? Border.all(color: color.withOpacity(0.5), width: 1.5)
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppColors.grey500,
+                      fontSize: 10,
+                    ),
+                  ),
+                  Text(
+                    station?['nom'] ?? 'Sélectionner une station',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: station != null ? null : AppColors.grey400,
+                      fontWeight: station != null ? FontWeight.w600 : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (station != null)
+              GestureDetector(
+                onTap: onClear,
+                child: Icon(LucideIcons.x, size: 18, color: AppColors.grey400),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
-  _Station({
-    required this.name,
-    required this.city,
-    required this.position,
-    required this.lines,
-  });
+  Color _parseColor(String? colorStr) {
+    if (colorStr == null || colorStr.isEmpty) return AppColors.primary;
+    try {
+      if (colorStr.startsWith('#')) {
+        return Color(int.parse(colorStr.substring(1), radix: 16) + 0xFF000000);
+      }
+      return AppColors.primary;
+    } catch (e) {
+      return AppColors.primary;
+    }
+  }
 }
 
 class _MapButton extends StatelessWidget {
@@ -513,423 +947,12 @@ class _MapButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 8,
             ),
           ],
         ),
         child: Icon(icon, size: 20),
-      ),
-    );
-  }
-}
-
-class _LegendItem extends StatelessWidget {
-  final Color color;
-  final String label;
-
-  const _LegendItem({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 20,
-            height: 3,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LocationInfoCard extends StatelessWidget {
-  final String locationName;
-  final LatLng location;
-  final VoidCallback onClose;
-  final bool isDark;
-
-  const _LocationInfoCard({
-    required this.locationName,
-    required this.location,
-    required this.onClose,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  LucideIcons.mapPin,
-                  color: AppColors.error,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Lieu sélectionné',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      locationName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: onClose,
-                child: Icon(
-                  LucideIcons.x,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.navigation,
-                  size: 14,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: Open in external maps app
-                  },
-                  icon: const Icon(LucideIcons.externalLink, size: 18),
-                  label: const Text('Ouvrir dans Maps'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: Find nearest station
-                  },
-                  icon: const Icon(LucideIcons.trainFront, size: 18),
-                  label: const Text('Gare proche'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StationInfoCard extends StatelessWidget {
-  final _Station station;
-  final VoidCallback onClose;
-  final bool isDark;
-
-  const _StationInfoCard({
-    required this.station,
-    required this.onClose,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  LucideIcons.trainFront,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      station.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      station.city,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: onClose,
-                child: Icon(
-                  LucideIcons.x,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Lignes desservies',
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: station.lines.map((line) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  line,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(LucideIcons.navigation, size: 18),
-                  label: const Text('Itinéraire'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(LucideIcons.ticket, size: 18),
-                  label: const Text('Horaires'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StationsList extends StatelessWidget {
-  final List<_Station> stations;
-  final Function(_Station) onStationTap;
-  final bool isDark;
-
-  const _StationsList({
-    required this.stations,
-    required this.onStationTap,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Toutes les gares',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              physics: const BouncingScrollPhysics(),
-              itemCount: stations.length,
-              itemBuilder: (context, index) {
-                final station = stations[index];
-                return ListTile(
-                  onTap: () => onStationTap(station),
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      LucideIcons.trainFront,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
-                  ),
-                  title: Text(
-                    station.name,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    station.city,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  trailing: Icon(
-                    LucideIcons.chevronRight,
-                    color: theme.colorScheme.onSurfaceVariant,
-                    size: 20,
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }

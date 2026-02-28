@@ -545,7 +545,7 @@ class _TicketCard extends StatelessWidget {
                 ),
                 child: PrettyQrView.data(
                   data: qrData,
-                  decoration: PrettyQrDecoration(
+                  decoration: const PrettyQrDecoration(
                     shape: PrettyQrSmoothSymbol(
                       color: AppColors.primaryDark,
                     ),

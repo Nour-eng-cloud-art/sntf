@@ -5,7 +5,6 @@ import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/core/theme/app_text_styles.dart';
 import 'package:sntf/data/services/supabase_service.dart';
 import 'package:sntf/providers/auth_provider.dart';
-import 'package:sntf/data/services/supabase_service.dart';
 
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});

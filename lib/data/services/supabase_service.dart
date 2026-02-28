@@ -1,4 +1,3 @@
-import 'package:sntf/data/models/transport.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Singleton service to access Supabase client throughout the app
@@ -626,5 +625,88 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-}
+  // ==================== ROUTE PLANNING ====================
 
+  /// Get all stations (with or without coordinates)
+  Future<List<Map<String, dynamic>>> getStationsWithCoordinates() async {
+    final response = await client
+        .from('stations')
+        .select()
+        .order('nom');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Find lignes that pass through both start and end stations
+  /// Returns lignes with their stations in order
+  Future<List<Map<String, dynamic>>> findConnectingLignes(
+    String startStationId, 
+    String endStationId,
+  ) async {
+    // Get all lignes that pass through the start station
+    final startLignes = await client
+        .from('arrets_lignes')
+        .select('ligne_id')
+        .eq('station_id', startStationId);
+    
+    final startLigneIds = (startLignes as List)
+        .map((e) => e['ligne_id'] as String)
+        .toSet();
+    
+    // Get all lignes that pass through the end station
+    final endLignes = await client
+        .from('arrets_lignes')
+        .select('ligne_id')
+        .eq('station_id', endStationId);
+    
+    final endLigneIds = (endLignes as List)
+        .map((e) => e['ligne_id'] as String)
+        .toSet();
+    
+    // Find common lignes
+    final commonLigneIds = startLigneIds.intersection(endLigneIds);
+    
+    if (commonLigneIds.isEmpty) {
+      return [];
+    }
+    
+    // Get full ligne details with all stations
+    final result = <Map<String, dynamic>>[];
+    
+    for (final ligneId in commonLigneIds) {
+      // Get ligne info
+      final ligneInfo = await client
+          .from('lignes')
+          .select()
+          .eq('id', ligneId)
+          .maybeSingle();
+      
+      if (ligneInfo == null) continue;
+      
+      // Get all stations for this ligne with coordinates
+      final stationsOnLigne = await client
+          .from('arrets_lignes')
+          .select('*, stations(*)')
+          .eq('ligne_id', ligneId)
+          .order('ordre_passage');
+      
+      result.add({
+        'ligne': ligneInfo,
+        'stations': stationsOnLigne,
+      });
+    }
+    
+    return result;
+  }
+
+  /// Search stations by name (for autocomplete)
+  Future<List<Map<String, dynamic>>> searchStationsByName(String query) async {
+    if (query.isEmpty) return [];
+    
+    final response = await client
+        .from('stations')
+        .select()
+        .ilike('nom', '%$query%')
+        .limit(10);
+    return List<Map<String, dynamic>>.from(response);
+  }
+}
