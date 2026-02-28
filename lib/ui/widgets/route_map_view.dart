@@ -42,9 +42,9 @@ class _RouteMapViewState extends State<RouteMapView> {
   }
   
   void _initTileUrl() {
-    final tomtomKey = dotenv.env['TOMTOM_API_KEY'];
-    if (tomtomKey != null && tomtomKey.isNotEmpty) {
-      _tileUrl = 'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=$tomtomKey';
+    final maptilerKey = dotenv.env['MAP_TILER_API_KEY'];
+    if (maptilerKey != null && maptilerKey.isNotEmpty) {
+      _tileUrl = 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$maptilerKey';
     } else {
       // Fallback to OpenStreetMap
       _tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';

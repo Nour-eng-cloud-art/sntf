@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
-import 'package:sntf/ui/screen/map/full_screen_map_picker.dart';
+import 'package:sntf/ui/screen/search/train_search_results_screen.dart';
 
 class SearchTab extends StatefulWidget {
   const SearchTab({super.key});
@@ -19,7 +18,6 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
   final TextEditingController _arrivalController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   int _passengers = 1;
-  bool _isRoundTrip = false;
 
   final List<Map<String, dynamic>> _popularStations = [
     {'name': 'Alger', 'lat': 36.7538, 'lng': 3.0588},
@@ -27,9 +25,8 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
     {'name': 'Constantine', 'lat': 36.3650, 'lng': 6.6147},
     {'name': 'Annaba', 'lat': 36.9000, 'lng': 7.7667},
     {'name': 'Sétif', 'lat': 36.1898, 'lng': 5.4108},
-    {'name': 'Blida', 'lat': 36.4722, 'lng': 2.8278},
-    {'name': 'Béjaïa', 'lat': 36.7500, 'lng': 5.0667},
     {'name': 'Tlemcen', 'lat': 34.8828, 'lng': -1.3167},
+    {'name': 'Béjaïa', 'lat': 36.7500, 'lng': 5.0667},
   ];
 
   @override
@@ -61,32 +58,52 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
     });
   }
 
-  void _openLocationPicker({required bool isDeparture}) async {
-    final result = await FullScreenMapPicker.show(
-      context,
-      initialPosition: const LatLng(35.6969, -0.6331),
-      title: isDeparture ? 'Gare de départ' : 'Gare d\'arrivée',
-      selectButtonText: 'Sélectionner cette gare',
-      primaryColor: isDeparture ? AppColors.success : AppColors.error,
+  void _showStationSelector({required bool isDeparture}) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isDeparture ? 'Gare de départ' : 'Gare d\'arrivée',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _popularStations.map((station) {
+                  return ActionChip(
+                    label: Text(station['name'] as String),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                    onPressed: () {
+                      setState(() {
+                        if (isDeparture) {
+                          _departureController.text = station['name'] as String;
+                        } else {
+                          _arrivalController.text = station['name'] as String;
+                        }
+                      });
+                      Navigator.pop(context);
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
     );
-    
-    if (result != null) {
-      final locationName = result.addressData['name']?.isNotEmpty == true
-          ? result.addressData['name']!
-          : result.addressData['city']?.isNotEmpty == true
-              ? result.addressData['city']!
-              : result.addressData['locality']?.isNotEmpty == true
-                  ? result.addressData['locality']!
-                  : result.address.split(',').first;
-      
-      setState(() {
-        if (isDeparture) {
-          _departureController.text = locationName;
-        } else {
-          _arrivalController.text = locationName;
-        }
-      });
-    }
   }
 
   Future<void> _selectDate() async {
@@ -134,37 +151,9 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
               ),
               const SizedBox(height: 8),
               Text(
-                'Trouvez le train idéal pour votre voyage',
+                'Trouvez le train idéal pour votre voyage National',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Trip Type Toggle
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurfaceVariant : AppColors.lightSurfaceVariant,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _TripTypeButton(
-                        label: 'Aller simple',
-                        isSelected: !_isRoundTrip,
-                        onTap: () => setState(() => _isRoundTrip = false),
-                      ),
-                    ),
-                    Expanded(
-                      child: _TripTypeButton(
-                        label: 'Aller-retour',
-                        isSelected: _isRoundTrip,
-                        onTap: () => setState(() => _isRoundTrip = true),
-                      ),
-                    ),
-                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -191,7 +180,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                       label: 'Départ',
                       icon: LucideIcons.circleDot,
                       iconColor: AppColors.success,
-                      onTap: () => _openLocationPicker(isDeparture: true),
+                      onTap: () => _showStationSelector(isDeparture: true),
                     ),
                     
                     // Swap Button
@@ -234,7 +223,7 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                       label: 'Arrivée',
                       icon: LucideIcons.mapPin,
                       iconColor: AppColors.error,
-                      onTap: () => _openLocationPicker(isDeparture: false),
+                      onTap: () => _showStationSelector(isDeparture: false),
                     ),
                     const SizedBox(height: 20),
 
@@ -266,7 +255,30 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/route-planning');
+                    if (_departureController.text.isEmpty || _arrivalController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Veuillez sélectionner une gare de départ et d\'arrivée'),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TrainSearchResultsScreen(
+                          departure: _departureController.text,
+                          arrival: _arrivalController.text,
+                          date: _selectedDate,
+                          passengers: _passengers,
+                        ),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -319,66 +331,8 @@ class _SearchTabState extends State<SearchTab> with SingleTickerProviderStateMix
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 32),
-
-              // Recent Searches
-              Text(
-                'Recherches récentes',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _RecentSearchCard(
-                from: 'Alger',
-                to: 'Oran',
-                date: '15 Fév 2026',
-                isDark: isDark,
-              ),
-              const SizedBox(height: 12),
-              _RecentSearchCard(
-                from: 'Constantine',
-                to: 'Annaba',
-                date: '10 Fév 2026',
-                isDark: isDark,
-              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TripTypeButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _TripTypeButton({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -616,81 +570,6 @@ class _PopularStationChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _RecentSearchCard extends StatelessWidget {
-  final String from;
-  final String to;
-  final String date;
-  final bool isDark;
-
-  const _RecentSearchCard({
-    required this.from,
-    required this.to,
-    required this.date,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceVariant : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              LucideIcons.history,
-              color: AppColors.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$from → $to',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  date,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            LucideIcons.chevronRight,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ],
       ),
     );
   }

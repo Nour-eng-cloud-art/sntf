@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
-/// Place prediction from TomTom Search Autocomplete
+/// Place prediction from MapTiler Search Autocomplete
 class PlacePrediction {
   final String placeId;
   final String description;
@@ -18,40 +18,44 @@ class PlacePrediction {
     this.position,
   });
 
-  factory PlacePrediction.fromTomTomJson(Map<String, dynamic> json) {
-    final address = json['address'] ?? {};
-    final position = json['position'] ?? {};
+  factory PlacePrediction.fromMapTilerJson(Map<String, dynamic> json) {
+    final properties = json['properties'] ?? {};
+    final geometry = json['geometry'] ?? {};
+    final coordinates = geometry['coordinates'] as List?;
     
-    final mainText = address['freeformAddress'] ?? 
-                     address['streetName'] ?? 
-                     json['poi']?['name'] ?? 
-                     'Unknown';
+    final placeName = properties['name'] ?? 
+                      json['place_name'] ?? 
+                      'Unknown';
     
-    final municipality = address['municipality'] ?? '';
-    final country = address['country'] ?? '';
-    final secondaryText = [municipality, country]
+    final context = properties['context'] ?? json['context'] ?? {};
+    final city = context['place']?['name'] ?? 
+                 properties['city'] ?? 
+                 properties['locality'] ?? '';
+    final country = context['country']?['name'] ?? 
+                    properties['country'] ?? '';
+    final secondaryText = [city, country]
         .where((s) => s.isNotEmpty)
         .join(', ');
     
     LatLng? latLng;
-    if (position['lat'] != null && position['lon'] != null) {
+    if (coordinates != null && coordinates.length >= 2) {
       latLng = LatLng(
-        (position['lat'] as num).toDouble(),
-        (position['lon'] as num).toDouble(),
+        (coordinates[1] as num).toDouble(),
+        (coordinates[0] as num).toDouble(),
       );
     }
 
     return PlacePrediction(
-      placeId: json['id']?.toString() ?? '',
-      description: mainText + (secondaryText.isNotEmpty ? ', $secondaryText' : ''),
-      mainText: json['poi']?['name'] ?? address['streetName'] ?? mainText,
+      placeId: json['id']?.toString() ?? properties['id']?.toString() ?? '',
+      description: placeName + (secondaryText.isNotEmpty ? ', $secondaryText' : ''),
+      mainText: placeName,
       secondaryText: secondaryText,
       position: latLng,
     );
   }
 }
 
-/// Place details from TomTom
+/// Place details from MapTiler
 class PlaceDetails {
   final String placeId;
   final String name;
@@ -69,50 +73,55 @@ class PlaceDetails {
     this.addressComponents = const {},
   });
 
-  factory PlaceDetails.fromTomTomJson(Map<String, dynamic> json) {
-    final address = json['address'] ?? {};
-    final position = json['position'] ?? {};
+  factory PlaceDetails.fromMapTilerJson(Map<String, dynamic> json) {
+    final properties = json['properties'] ?? {};
+    final geometry = json['geometry'] ?? {};
+    final coordinates = geometry['coordinates'] as List?;
+    final context = properties['context'] ?? json['context'] ?? {};
     
     final components = <String, String>{
-      'street': address['streetName'] ?? '',
-      'city': address['municipality'] ?? address['localName'] ?? '',
-      'state': address['countrySubdivision'] ?? '',
-      'country': address['country'] ?? '',
-      'postalCode': address['postalCode'] ?? '',
+      'street': properties['street'] ?? '',
+      'city': context['place']?['name'] ?? properties['city'] ?? properties['locality'] ?? '',
+      'state': context['region']?['name'] ?? properties['state'] ?? '',
+      'country': context['country']?['name'] ?? properties['country'] ?? '',
+      'postalCode': properties['postcode'] ?? '',
     };
 
-    final name = json['poi']?['name'] ?? 
-                 address['streetName'] ?? 
-                 address['freeformAddress'] ?? 
+    final name = properties['name'] ?? 
+                 json['place_name'] ?? 
                  'Unknown';
 
+    double lat = 0;
+    double lon = 0;
+    if (coordinates != null && coordinates.length >= 2) {
+      lon = (coordinates[0] as num).toDouble();
+      lat = (coordinates[1] as num).toDouble();
+    }
+
     return PlaceDetails(
-      placeId: json['id']?.toString() ?? '',
+      placeId: json['id']?.toString() ?? properties['id']?.toString() ?? '',
       name: name,
-      formattedAddress: address['freeformAddress'] ?? '',
-      location: LatLng(
-        (position['lat'] as num?)?.toDouble() ?? 0,
-        (position['lon'] as num?)?.toDouble() ?? 0,
-      ),
-      vicinity: address['municipality'],
+      formattedAddress: json['place_name'] ?? properties['full_address'] ?? name,
+      location: LatLng(lat, lon),
+      vicinity: components['city'],
       addressComponents: components,
     );
   }
 }
 
-/// TomTom Search API Service
-class TomTomService {
+/// MapTiler Search API Service
+class MapTilerService {
   final String apiKey;
-  static const String _baseUrl = 'https://api.tomtom.com/search/2';
+  static const String _baseUrl = 'https://api.maptiler.com/geocoding';
   
-  TomTomService({required this.apiKey});
+  MapTilerService({required this.apiKey});
 
-  /// Search for place predictions (fuzzy search / autocomplete)
+  /// Search for place predictions (geocoding / autocomplete)
   Future<List<PlacePrediction>> getPlacePredictions(
     String query, {
     LatLng? location,
     int? radius,
-    String language = 'fr-FR',
+    String language = 'fr',
     String? countrySet,
     int limit = 10,
   }) async {
@@ -122,23 +131,21 @@ class TomTomService {
       'key': apiKey,
       'language': language,
       'limit': limit.toString(),
-      'typeahead': 'true',
-      if (location != null) 'lat': location.latitude.toString(),
-      if (location != null) 'lon': location.longitude.toString(),
-      if (radius != null) 'radius': radius.toString(),
-      if (countrySet != null) 'countrySet': countrySet,
+      'autocomplete': 'true',
+      if (location != null) 'proximity': '${location.longitude},${location.latitude}',
+      if (countrySet != null) 'country': countrySet,
     };
 
     final encodedQuery = Uri.encodeComponent(query);
-    final uri = Uri.parse('$_baseUrl/search/$encodedQuery.json')
+    final uri = Uri.parse('$_baseUrl/$encodedQuery.json')
         .replace(queryParameters: params);
     
     try {
       final response = await http.get(uri);
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        final results = json['results'] as List? ?? [];
-        return results.map((r) => PlacePrediction.fromTomTomJson(r)).toList();
+        final features = json['features'] as List? ?? [];
+        return features.map((r) => PlacePrediction.fromMapTilerJson(r)).toList();
       }
     } catch (e) {
       // Handle error silently, return empty list
@@ -147,41 +154,42 @@ class TomTomService {
   }
 
   /// Reverse geocode - get address from coordinates
-  Future<PlaceDetails?> reverseGeocode(LatLng position, {String language = 'fr-FR'}) async {
+  Future<PlaceDetails?> reverseGeocode(LatLng position, {String language = 'fr'}) async {
     final params = {
       'key': apiKey,
       'language': language,
     };
 
     final uri = Uri.parse(
-      '$_baseUrl/reverseGeocode/${position.latitude},${position.longitude}.json'
+      '$_baseUrl/${position.longitude},${position.latitude}.json'
     ).replace(queryParameters: params);
     
     try {
       final response = await http.get(uri);
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        final addresses = json['addresses'] as List? ?? [];
-        if (addresses.isNotEmpty) {
-          final result = addresses.first;
-          final address = result['address'] ?? {};
+        final features = json['features'] as List? ?? [];
+        if (features.isNotEmpty) {
+          final result = features.first;
+          final properties = result['properties'] ?? {};
+          final context = properties['context'] ?? result['context'] ?? {};
           
           return PlaceDetails(
             placeId: result['id']?.toString() ?? '',
-            name: address['streetName'] ?? 
-                  address['municipality'] ?? 
-                  address['freeformAddress'] ?? 'Unknown',
-            formattedAddress: address['freeformAddress'] ?? '',
+            name: properties['name'] ?? 
+                  result['place_name'] ?? 
+                  'Unknown',
+            formattedAddress: result['place_name'] ?? '',
             location: position,
-            vicinity: address['municipality'],
+            vicinity: context['place']?['name'] ?? properties['locality'],
             addressComponents: {
-              'street': address['streetName'] ?? '',
-              'city': address['municipality'] ?? address['localName'] ?? '',
-              'state': address['countrySubdivision'] ?? '',
-              'country': address['country'] ?? '',
-              'postalCode': address['postalCode'] ?? '',
-              'name': address['streetName'] ?? address['municipality'] ?? '',
-              'display_name': address['freeformAddress'] ?? '',
+              'street': properties['street'] ?? '',
+              'city': context['place']?['name'] ?? properties['city'] ?? properties['locality'] ?? '',
+              'state': context['region']?['name'] ?? properties['state'] ?? '',
+              'country': context['country']?['name'] ?? properties['country'] ?? '',
+              'postalCode': properties['postcode'] ?? '',
+              'name': properties['name'] ?? '',
+              'display_name': result['place_name'] ?? '',
             },
           );
         }
@@ -197,28 +205,28 @@ class TomTomService {
     LatLng location, {
     int radius = 1500,
     String? categorySet,
-    String language = 'fr-FR',
+    String language = 'fr',
     int limit = 20,
   }) async {
+    // MapTiler uses proximity-based search
     final params = {
       'key': apiKey,
-      'lat': location.latitude.toString(),
-      'lon': location.longitude.toString(),
-      'radius': radius.toString(),
       'language': language,
       'limit': limit.toString(),
-      if (categorySet != null) 'categorySet': categorySet,
+      'proximity': '${location.longitude},${location.latitude}',
+      if (categorySet != null) 'types': categorySet,
     };
 
-    final uri = Uri.parse('$_baseUrl/nearbySearch/.json')
+    // Search for POIs in the area
+    final uri = Uri.parse('$_baseUrl/.json')
         .replace(queryParameters: params);
     
     try {
       final response = await http.get(uri);
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        final results = json['results'] as List? ?? [];
-        return results.map((r) => PlaceDetails.fromTomTomJson(r)).toList();
+        final features = json['features'] as List? ?? [];
+        return features.map((r) => PlaceDetails.fromMapTilerJson(r)).toList();
       }
     } catch (e) {
       // Handle error silently
@@ -226,19 +234,21 @@ class TomTomService {
     return [];
   }
 
-  /// Get TomTom map tile URL
+  /// Get MapTiler streets map tile URL
   static String getTileUrl(String apiKey) {
-    return 'https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=$apiKey';
+    return 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$apiKey';
   }
 
-  /// Get TomTom satellite tile URL
+  /// Get MapTiler satellite tile URL
   static String getSatelliteTileUrl(String apiKey) {
-    return 'https://api.tomtom.com/map/1/tile/sat/main/{z}/{x}/{y}.jpg?key=$apiKey';
+    return 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$apiKey';
   }
 
-  /// Get TomTom hybrid tile URL (satellite with labels)
+  /// Get MapTiler hybrid tile URL (satellite with labels)
   static String getHybridTileUrl(String apiKey) {
-    return 'https://api.tomtom.com/map/1/tile/hybrid/main/{z}/{x}/{y}.png?key=$apiKey';
+    return 'https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.jpg?key=$apiKey';
   }
 }
 
+// Backward compatibility alias
+typedef TomTomService = MapTilerService;

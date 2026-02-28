@@ -26,7 +26,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _apiKey = dotenv.env['TOMTOM_API_KEY'];
+    _apiKey = dotenv.env['MAP_TILER_API_KEY'];
   }
 
   /// Animate map to a location
@@ -35,14 +35,19 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     _mapController.move(destLocation, destZoom);
   }
 
-  /// Open location picker
+  /// Open location picker - restricted to Oran city
   void _openLocationPicker() async {
+    // Oran city center coordinates
+    const oranCenter = LatLng(35.6969, -0.6331);
+    
     final result = await FullScreenMapPicker.show(
       context,
-      initialPosition: _selectedLocation ?? const LatLng(35.6969, -0.6331),
-      title: 'Rechercher un lieu',
+      initialPosition: _selectedLocation ?? oranCenter,
+      title: 'Rechercher un lieu à Oran',
       selectButtonText: 'Sélectionner ce lieu',
       primaryColor: AppColors.primary,
+      searchCenterOverride: oranCenter,
+      searchRadius: 15000, // 15km radius - Oran city area
     );
     
     if (result != null) {
@@ -193,7 +198,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
     return Stack(
       children: [
-        // TomTom Map
+        // MapTiler Map
         if (_apiKey != null && _apiKey!.isNotEmpty)
           FlutterMap(
             mapController: _mapController,
@@ -214,7 +219,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
             children: [
               TileLayer(
-                urlTemplate: TomTomService.getTileUrl(_apiKey!),
+                urlTemplate: MapTilerService.getTileUrl(_apiKey!),
                 userAgentPackageName: 'com.sntf.app',
               ),
               PolylineLayer(polylines: _buildPolylines()),
@@ -236,7 +241,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Clé API TomTom non configurée',
+                    'Clé API MapTiler non configurée',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.grey500,
                     ),

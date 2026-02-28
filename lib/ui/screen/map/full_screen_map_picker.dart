@@ -32,6 +32,8 @@ class FullScreenMapPicker extends StatefulWidget {
   final bool showCurrentLocationButton;
   final bool showSearchBar;
   final String searchHintText;
+  final LatLng? searchCenterOverride;
+  final int? searchRadius;
 
   const FullScreenMapPicker({
     super.key,
@@ -43,6 +45,8 @@ class FullScreenMapPicker extends StatefulWidget {
     this.showCurrentLocationButton = true,
     this.showSearchBar = true,
     this.searchHintText = 'Rechercher un lieu...',
+    this.searchCenterOverride,
+    this.searchRadius,
   });
 
   /// Static method to show the map picker and return the selected location
@@ -52,6 +56,8 @@ class FullScreenMapPicker extends StatefulWidget {
     String title = 'Choisir un lieu',
     String selectButtonText = 'Confirmer ce lieu',
     Color primaryColor = AppColors.primary,
+    LatLng? searchCenterOverride,
+    int? searchRadius,
   }) {
     return Navigator.of(context).push<LocationData>(
       MaterialPageRoute(
@@ -60,6 +66,8 @@ class FullScreenMapPicker extends StatefulWidget {
           title: title,
           selectButtonText: selectButtonText,
           primaryColor: primaryColor,
+          searchCenterOverride: searchCenterOverride,
+          searchRadius: searchRadius,
         ),
       ),
     );
@@ -85,7 +93,7 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
   List<PlacePrediction> _searchPredictions = [];
   bool _showSearchResults = false;
   Timer? _searchDebounce;
-  TomTomService? _tomtomService;
+  MapTilerService? _maptilerService;
   String? _apiKey;
   
   // Animation
@@ -97,7 +105,7 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
     super.initState();
     _mapController = MapController();
     _currentTarget = widget.initialPosition;
-    _initTomTomService();
+    _initMapTilerService();
     _getAddressFromLatLng(_currentTarget);
     
     // Marker bounce animation
@@ -116,10 +124,10 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
     });
   }
 
-  void _initTomTomService() {
-    _apiKey = dotenv.env['TOMTOM_API_KEY'];
+  void _initMapTilerService() {
+    _apiKey = dotenv.env['MAP_TILER_API_KEY'];
     if (_apiKey != null && _apiKey!.isNotEmpty) {
-      _tomtomService = TomTomService(apiKey: _apiKey!);
+      _maptilerService = MapTilerService(apiKey: _apiKey!);
     }
   }
 
@@ -134,12 +142,12 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
   }
 
   Future<void> _getAddressFromLatLng(LatLng position) async {
-    if (_tomtomService == null) return;
+    if (_maptilerService == null) return;
     
     setState(() => _isLoadingAddress = true);
     
     try {
-      final details = await _tomtomService!.reverseGeocode(position);
+      final details = await _maptilerService!.reverseGeocode(position);
       
       if (details != null) {
         setState(() {
@@ -248,13 +256,16 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
   }
 
   Future<void> _searchPlaces(String query) async {
-    if (_tomtomService == null) return;
+    if (_maptilerService == null) return;
     
     try {
-      final predictions = await _tomtomService!.getPlacePredictions(
+      final searchCenter = widget.searchCenterOverride ?? _currentTarget;
+      final searchRadius = widget.searchRadius ?? 50000; // Default 50km
+      
+      final predictions = await _maptilerService!.getPlacePredictions(
         query,
-        location: _currentTarget,
-        radius: 50000, // 50km radius
+        location: searchCenter,
+        radius: searchRadius,
         countrySet: 'DZ', // Algeria
       );
       
@@ -321,7 +332,7 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
           child: Padding(
             padding: EdgeInsets.all(20),
             child: Text(
-              'TomTom API key not configured.\nPlease add TOMTOM_API_KEY to your .env file.',
+              'MapTiler API key not configured.\nPlease add MAP_TILER_API_KEY to your .env file.',
               textAlign: TextAlign.center,
             ),
           ),
@@ -332,7 +343,7 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
     return Scaffold(
       body: Stack(
         children: [
-          // TomTom Map - Full Screen
+          // MapTiler Map - Full Screen
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -350,7 +361,7 @@ class _FullScreenMapPickerState extends State<FullScreenMapPicker>
             ),
             children: [
               TileLayer(
-                urlTemplate: TomTomService.getTileUrl(_apiKey!),
+                urlTemplate: MapTilerService.getTileUrl(_apiKey!),
                 userAgentPackageName: 'com.sntf.app',
                 maxZoom: 18,
               ),

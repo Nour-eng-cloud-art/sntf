@@ -1,3 +1,4 @@
+import 'package:sntf/data/models/transport.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Singleton service to access Supabase client throughout the app
@@ -614,6 +615,14 @@ class SupabaseService {
         .select('*, controleurs(*, profiles(*))')
         .eq('user_id', userId)
         .order('date_emission', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllLignes() async {
+    final response = await SupabaseService().client
+        .from('lignes')
+        .select()
+        .order('nom_court');
     return List<Map<String, dynamic>>.from(response);
   }
 
