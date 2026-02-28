@@ -203,8 +203,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(35.6969, -0.6331), 
-              initialZoom: 6.0,
+              initialCenter: const LatLng(35.6969, -0.6331), // Oran city center
+              initialZoom: 13.0, // Zoom in on Oran
               minZoom: 5.0,
               maxZoom: 18.0,
               onMapReady: () {

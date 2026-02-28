@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
@@ -79,6 +81,42 @@ class _TrafficTabState extends State<TrafficTab>
     _animationController.dispose();
     _busSearchController.dispose();
     super.dispose();
+  }
+
+  /// Show stations for a specific line
+  void _showLineStations(String lineId, String lineName, Color lineColor) async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _LineStationsSheet(
+        lineId: lineId,
+        lineName: lineName,
+        lineColor: lineColor,
+        supabaseService: supabaseService,
+        onStationTap: (stationId, stationName) {
+          Navigator.pop(context);
+          _showStationSchedules(lineId, lineName, stationId, stationName, lineColor);
+        },
+      ),
+    );
+  }
+
+  /// Show schedules for a station on a specific line
+  void _showStationSchedules(String lineId, String lineName, String stationId, String stationName, Color lineColor) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _StationSchedulesSheet(
+        lineId: lineId,
+        lineName: lineName,
+        stationId: stationId,
+        stationName: stationName,
+        lineColor: lineColor,
+        supabaseService: supabaseService,
+      ),
+    );
   }
 
   @override
@@ -286,7 +324,7 @@ class _TrafficTabState extends State<TrafficTab>
         final line = entry.value;
         final color = _parseColor(line['couleur'], defaultColors[index % defaultColors.length]);
         return _buildTelepheriqueLineBadge(
-          _LineBadgeData(line['nom_court'] ?? '', color),
+          _LineBadgeData(line['id']?.toString() ?? '', line['nom_court'] ?? '', color),
         );
       }).toList(),
     );
@@ -314,7 +352,7 @@ class _TrafficTabState extends State<TrafficTab>
         final line = entry.value;
         final color = _parseColor(line['couleur'], defaultColors[index % defaultColors.length]);
         return _buildTramBadge(
-          _LineBadgeData(line['nom_court'] ?? '', color),
+          _LineBadgeData(line['id']?.toString() ?? '', line['nom_court'] ?? '', color),
         );
       }).toList(),
     );
@@ -382,7 +420,7 @@ class _TrafficTabState extends State<TrafficTab>
               final line = entry.value;
               final color = _parseColor(line['couleur'], defaultColors[index % defaultColors.length]);
               return _buildBusLineBadge(
-                _LineBadgeData(line['nom_court'] ?? '', color),
+                _LineBadgeData(line['id']?.toString() ?? '', line['nom_court'] ?? '', color),
               );
             }).toList(),
           ),
@@ -392,84 +430,66 @@ class _TrafficTabState extends State<TrafficTab>
 
   // Badge Builders
   Widget _buildBusLineBadge(_LineBadgeData data) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: data.color,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            data.label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: data.textColor,
-            ),
+    return GestureDetector(
+      onTap: () => _showLineStations(data.id, data.label, data.color),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: data.color,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          data.label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: data.textColor,
           ),
         ),
-        if (data.hasAlert)
-          Positioned(right: -6, top: -6, child: _buildAlertIndicator()),
-        if (data.hasInfo)
-          Positioned(right: -6, top: -6, child: _buildInfoIndicator()),
-      ],
+      ),
     );
   }
 
   Widget _buildTelepheriqueLineBadge(_LineBadgeData data) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: data.color,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            data.label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: data.textColor,
-            ),
+    return GestureDetector(
+      onTap: () => _showLineStations(data.id, data.label, data.color),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: data.color,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          data.label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: data.textColor,
           ),
         ),
-        if (data.hasAlert)
-          Positioned(right: -6, top: -6, child: _buildAlertIndicator()),
-        if (data.hasInfo)
-          Positioned(right: -6, top: -6, child: _buildInfoIndicator()),
-      ],
+      ),
     );
   }
 
   Widget _buildTramBadge(_LineBadgeData data) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: data.color, width: 3),
-          ),
-          child: Text(
-            data.label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: data.color,
-            ),
+    return GestureDetector(
+      onTap: () => _showLineStations(data.id, data.label, data.color),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: data.color, width: 3),
+        ),
+        child: Text(
+          data.label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: data.color,
           ),
         ),
-        if (data.hasAlert)
-          Positioned(right: -6, top: -6, child: _buildAlertIndicator()),
-        if (data.hasInfo)
-          Positioned(right: -6, top: -6, child: _buildInfoIndicator()),
-      ],
+      ),
     );
   }
 
@@ -512,17 +532,754 @@ class _TrafficTabState extends State<TrafficTab>
 }
 
 class _LineBadgeData {
+  final String id;
   final String label;
   final Color color;
   final Color textColor;
-  final bool hasAlert;
-  final bool hasInfo;
 
   _LineBadgeData(
+    this.id,
     this.label,
     this.color, {
     this.textColor = Colors.white,
-    this.hasAlert = false,
-    this.hasInfo = false,
   });
+}
+
+/// Bottom sheet showing all stations for a line
+class _LineStationsSheet extends StatefulWidget {
+  final String lineId;
+  final String lineName;
+  final Color lineColor;
+  final SupabaseService supabaseService;
+  final Function(String stationId, String stationName) onStationTap;
+
+  const _LineStationsSheet({
+    required this.lineId,
+    required this.lineName,
+    required this.lineColor,
+    required this.supabaseService,
+    required this.onStationTap,
+  });
+
+  @override
+  State<_LineStationsSheet> createState() => _LineStationsSheetState();
+}
+
+class _LineStationsSheetState extends State<_LineStationsSheet> {
+  List<Map<String, dynamic>> _stations = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStations();
+  }
+
+  Future<void> _loadStations() async {
+    try {
+      final stations = await widget.supabaseService.getStationsForLigne(widget.lineId);
+      setState(() {
+        _stations = stations;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.grey300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: widget.lineColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    widget.lineName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Stations',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(LucideIcons.x),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+          // Content
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(child: Text('Erreur: $_error'))
+                    : _stations.isEmpty
+                        ? const Center(child: Text('Aucune station trouvée'))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: _stations.length,
+                            itemBuilder: (context, index) {
+                              final arret = _stations[index];
+                              final station = arret['stations'] as Map<String, dynamic>?;
+                              final stationId = station?['id']?.toString() ?? arret['station_id']?.toString() ?? '';
+                              final stationName = station?['nom'] ?? 'Station ${index + 1}';
+                              final ordre = arret['ordre_passage'] ?? (index + 1);
+
+                              return InkWell(
+                                onTap: () => widget.onStationTap(stationId, stationName),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: isDark ? AppColors.darkSurfaceVariant : AppColors.grey200,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Order number
+                                      Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: widget.lineColor.withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: widget.lineColor, width: 2),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '$ordre',
+                                            style: TextStyle(
+                                              color: widget.lineColor,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Station name
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              stationName,
+                                              style: theme.textTheme.bodyLarge?.copyWith(
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            if (station?['adresse'] != null)
+                                              Text(
+                                                station!['adresse'],
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  color: AppColors.grey500,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Arrow
+                                      Icon(
+                                        LucideIcons.chevronRight,
+                                        color: AppColors.grey400,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet showing schedules for a station on a line
+class _StationSchedulesSheet extends StatefulWidget {
+  final String lineId;
+  final String lineName;
+  final String stationId;
+  final String stationName;
+  final Color lineColor;
+  final SupabaseService supabaseService;
+
+  const _StationSchedulesSheet({
+    required this.lineId,
+    required this.lineName,
+    required this.stationId,
+    required this.stationName,
+    required this.lineColor,
+    required this.supabaseService,
+  });
+
+  @override
+  State<_StationSchedulesSheet> createState() => _StationSchedulesSheetState();
+}
+
+class _StationSchedulesSheetState extends State<_StationSchedulesSheet> {
+  List<Map<String, dynamic>> _horaires = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSchedules();
+  }
+
+  Future<void> _loadSchedules() async {
+    try {
+      final horaires = await widget.supabaseService.getHorairesForLigneAtStation(
+        widget.lineId,
+        widget.stationId,
+      );
+      setState(() {
+        _horaires = horaires;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatTime(dynamic time) {
+    if (time == null) return '--:--';
+    if (time is String) {
+      // Handle ISO datetime format like "2026-02-15T06:30:00"
+      if (time.contains('T')) {
+        final timePart = time.split('T').last;
+        final parts = timePart.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0]}:${parts[1]}';
+        }
+        return timePart;
+      }
+      // Handle simple time format like "08:30:00"
+      final parts = time.split(':');
+      if (parts.length >= 2) {
+        return '${parts[0]}:${parts[1]}';
+      }
+      return time;
+    }
+    return time.toString();
+  }
+
+  String _normalizeDay(String? day) {
+    if (day == null) return 'Tous les jours';
+    final lower = day.toLowerCase().trim();
+    
+    // Map various day formats to standard French names
+    final dayMappings = {
+      'lundi': 'Lundi',
+      'lun': 'Lundi',
+      'monday': 'Lundi',
+      'mon': 'Lundi',
+      'mardi': 'Mardi',
+      'mar': 'Mardi',
+      'tuesday': 'Mardi',
+      'tue': 'Mardi',
+      'mercredi': 'Mercredi',
+      'mer': 'Mercredi',
+      'wednesday': 'Mercredi',
+      'wed': 'Mercredi',
+      'jeudi': 'Jeudi',
+      'jeu': 'Jeudi',
+      'thursday': 'Jeudi',
+      'thu': 'Jeudi',
+      'vendredi': 'Vendredi',
+      'ven': 'Vendredi',
+      'friday': 'Vendredi',
+      'fri': 'Vendredi',
+      'samedi': 'Samedi',
+      'sam': 'Samedi',
+      'saturday': 'Samedi',
+      'sat': 'Samedi',
+      'dimanche': 'Dimanche',
+      'dim': 'Dimanche',
+      'sunday': 'Dimanche',
+      'sun': 'Dimanche',
+    };
+    
+    return dayMappings[lower] ?? day;
+  }
+
+  IconData _getDayIcon(String day) {
+    switch (day) {
+      case 'Lundi':
+        return LucideIcons.calendarDays;
+      case 'Mardi':
+        return LucideIcons.calendarDays;
+      case 'Mercredi':
+        return LucideIcons.calendarDays;
+      case 'Jeudi':
+        return LucideIcons.calendarDays;
+      case 'Vendredi':
+        return LucideIcons.calendarCheck;
+      case 'Samedi':
+        return LucideIcons.sun;
+      case 'Dimanche':
+        return LucideIcons.coffee;
+      default:
+        return LucideIcons.calendar;
+    }
+  }
+
+  Color _getDayAccentColor(String day, Color baseColor) {
+    switch (day) {
+      case 'Samedi':
+        return Colors.orange;
+      case 'Dimanche':
+        return Colors.red.shade400;
+      default:
+        return baseColor;
+    }
+  }
+
+  Map<String, List<String>> _groupByDay() {
+    final groups = <String, List<String>>{};
+    
+    for (final horaire in _horaires) {
+      final rawDay = horaire['jour']?.toString() ?? horaire['day']?.toString();
+      final day = _normalizeDay(rawDay);
+      final time = _formatTime(horaire['heure_passage']);
+      
+      groups.putIfAbsent(day, () => []);
+      if (!groups[day]!.contains(time)) {
+        groups[day]!.add(time);
+      }
+    }
+    
+    // Sort times within each day
+    for (final day in groups.keys) {
+      groups[day]!.sort();
+    }
+    
+    // Sort days in week order
+    final orderedDays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche', 'Tous les jours'];
+    final sortedGroups = <String, List<String>>{};
+    for (final day in orderedDays) {
+      if (groups.containsKey(day)) {
+        sortedGroups[day] = groups[day]!;
+      }
+    }
+    // Add any remaining days not in the ordered list
+    for (final day in groups.keys) {
+      if (!sortedGroups.containsKey(day)) {
+        sortedGroups[day] = groups[day]!;
+      }
+    }
+    
+    return sortedGroups;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            width: 48,
+            height: 5,
+            decoration: BoxDecoration(
+              color: AppColors.grey300,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          // Gradient Header
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  widget.lineColor,
+                  widget.lineColor.withOpacity(0.8),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.lineColor.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        LucideIcons.clock,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Horaires de passage',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.lineName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          LucideIcons.x,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        LucideIcons.mapPin,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          widget.stationName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Content
+          Expanded(
+            child: _isLoading
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: widget.lineColor,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Chargement des horaires...',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.grey500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                LucideIcons.messageCircleWarning,
+                                size: 48,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Erreur de chargement',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _error!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.grey500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : _horaires.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: widget.lineColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Icon(
+                                    LucideIcons.calendarX,
+                                    size: 56,
+                                    color: widget.lineColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  'Aucun horaire disponible',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Les horaires pour cette station\nne sont pas encore disponibles',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.grey500,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        : _buildScheduleList(theme, isDark),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleList(ThemeData theme, bool isDark) {
+    final groupedSchedules = _groupByDay();
+    
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: groupedSchedules.length,
+      itemBuilder: (context, index) {
+        final day = groupedSchedules.keys.elementAt(index);
+        final times = groupedSchedules[day]!;
+        final dayColor = _getDayAccentColor(day, widget.lineColor);
+        
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurfaceVariant : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Day Header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: dayColor.withOpacity(isDark ? 0.2 : 0.1),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: dayColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _getDayIcon(day),
+                        size: 20,
+                        color: dayColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        day,
+                        style: TextStyle(
+                          color: dayColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: dayColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${times.length} passage${times.length > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          color: dayColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Time chips grid
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: times.map((time) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            dayColor.withOpacity(isDark ? 0.25 : 0.08),
+                            dayColor.withOpacity(isDark ? 0.15 : 0.04),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: dayColor.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        time,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
