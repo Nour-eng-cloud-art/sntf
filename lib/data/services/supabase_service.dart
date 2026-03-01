@@ -751,27 +751,39 @@ class SupabaseService {
     if (directRoutes.isNotEmpty) {
       debugPrint('Found ${directRoutes.length} direct route(s)');
       
-      // Filter stations between start and end
-      final route = directRoutes.first;
-      final allStations = route['stations'] as List;
-      final filteredStations = _filterStationsBetween(
-        allStations, 
-        startStationId, 
-        endStationId,
-      );
+      // Build all route options for user to choose from
+      final allRouteOptions = <Map<String, dynamic>>[];
       
+      for (final route in directRoutes) {
+        final allStations = route['stations'] as List;
+        final filteredStations = _filterStationsBetween(
+          allStations, 
+          startStationId, 
+          endStationId,
+        );
+        
+        allRouteOptions.add({
+          'type': 'direct',
+          'segments': [
+            {
+              'ligne': route['ligne'],
+              'stations': filteredStations,
+              'fromStation': startStationId,
+              'toStation': endStationId,
+            }
+          ],
+          'totalTransfers': 0,
+          'ligne': route['ligne'],
+        });
+      }
+      
+      // Return first route as selected, but include all options
       return {
         'type': 'direct',
-        'segments': [
-          {
-            'ligne': route['ligne'],
-            'stations': filteredStations,
-            'fromStation': startStationId,
-            'toStation': endStationId,
-          }
-        ],
+        'segments': allRouteOptions.first['segments'],
         'totalTransfers': 0,
-        'allRoutes': directRoutes,
+        'allRouteOptions': allRouteOptions,
+        'selectedRouteIndex': 0,
       };
     }
 
@@ -797,30 +809,41 @@ class SupabaseService {
       };
     }
     
-    // BFS to find shortest path
-    final path = _bfsShortestPath(graph, startStationId, endStationId);
+    // BFS to find multiple paths
+    final paths = _bfsMultiplePaths(graph, startStationId, endStationId, maxPaths: 5);
     
-    if (path == null) {
+    if (paths.isEmpty) {
       debugPrint('No path found');
       return {
         'type': 'none',
         'segments': [],
         'totalTransfers': 0,
-        'allRoutes': [],
+        'allRouteOptions': [],
       };
     }
 
-    debugPrint('Path found with ${path.length} steps');
+    debugPrint('Found ${paths.length} path(s)');
     
-    // Convert path to segments
-    final segments = await _pathToSegments(path);
-    debugPrint('Created ${segments.length} segment(s)');
+    // Convert all paths to route options
+    final allRouteOptions = <Map<String, dynamic>>[];
+    for (final path in paths) {
+      final segments = await _pathToSegments(path);
+      allRouteOptions.add({
+        'type': 'transfer',
+        'segments': segments,
+        'totalTransfers': segments.length - 1,
+        'path': path,
+      });
+    }
+    
+    debugPrint('Created ${allRouteOptions.length} route option(s)');
     
     return {
       'type': 'transfer',
-      'segments': segments,
-      'totalTransfers': segments.length - 1,
-      'path': path,
+      'segments': allRouteOptions.first['segments'],
+      'totalTransfers': allRouteOptions.first['totalTransfers'],
+      'allRouteOptions': allRouteOptions,
+      'selectedRouteIndex': 0,
     };
   }
   
@@ -938,6 +961,103 @@ class SupabaseService {
     }
     
     debugPrint('Created $edgesCreated edges, graph has ${graph.length} stations');
+    
+    // Add ALL stations to the graph with walking connections
+    // This ensures any station (even those not on transit lines) can be reached
+    final allStations = await client.from('stations').select('id, nom, location');
+    debugPrint('Total stations in database: ${allStations.length}');
+    
+    final stationCoords = <String, (double lat, double lng, Map<String, dynamic> info)>{};
+    
+    // Parse coordinates for ALL stations
+    for (final station in allStations) {
+      final stationId = station['id'] as String;
+      final coords = _parseWkbLocation(station['location']);
+      if (coords != null) {
+        stationCoords[stationId] = (coords.$1, coords.$2, Map<String, dynamic>.from(station));
+        // Ensure station exists in graph (even if not on any transit line)
+        graph.putIfAbsent(stationId, () => {});
+      }
+    }
+    
+    debugPrint('Stations with valid coordinates: ${stationCoords.length}');
+    
+    // Add walking edges between nearby stations (within 2km for better connectivity)
+    int walkingEdges = 0;
+    final walkingLigne = {
+      'id': 'walking',
+      'nom': 'À pied',
+      'nom_court': '🚶',
+      'couleur_hex': '#888888',
+      'type': 'walking',
+    };
+    
+    final stationIds = stationCoords.keys.toList();
+    for (int i = 0; i < stationIds.length; i++) {
+      final id1 = stationIds[i];
+      final (lat1, lng1, info1) = stationCoords[id1]!;
+      
+      // Find nearest stations for this station
+      final distances = <(String, double, Map<String, dynamic>)>[];
+      
+      for (int j = 0; j < stationIds.length; j++) {
+        if (i == j) continue;
+        final id2 = stationIds[j];
+        final (lat2, lng2, info2) = stationCoords[id2]!;
+        final distance = _calculateDistance(lat1, lng1, lat2, lng2);
+        distances.add((id2, distance, info2));
+      }
+      
+      // Sort by distance
+      distances.sort((a, b) => a.$2.compareTo(b.$2));
+      
+      // Connect to nearest 5 stations within 3km (ensures connectivity even for isolated stations)
+      int connectionsAdded = 0;
+      for (final (id2, distance, info2) in distances) {
+        if (distance > 3000) break; // Max 3km
+        if (connectionsAdded >= 5) break; // Max 5 connections per station
+        
+        // Add walking connection if not already connected by transit
+        final existingConnections = graph[id1]?[id2];
+        final hasTransitConnection = existingConnections?.any((c) => c['walking'] != true) ?? false;
+        
+        if (!hasTransitConnection) {
+          final (lat2, lng2, _) = stationCoords[id2]!;
+          
+          graph.putIfAbsent(id1, () => {});
+          graph[id1]!.putIfAbsent(id2, () => []);
+          
+          // Check if walking connection already exists
+          final hasWalkingConnection = existingConnections?.any((c) => c['walking'] == true) ?? false;
+          if (!hasWalkingConnection) {
+            graph[id1]![id2]!.add({
+              'ligne': walkingLigne,
+              'station_info': {...info1, 'latitude': lat1, 'longitude': lng1},
+              'next_station_info': {...info2, 'latitude': lat2, 'longitude': lng2},
+              'walking': true,
+              'distance': distance.round(),
+            });
+            
+            // Add reverse direction
+            graph.putIfAbsent(id2, () => {});
+            graph[id2]!.putIfAbsent(id1, () => []);
+            graph[id2]![id1]!.add({
+              'ligne': walkingLigne,
+              'station_info': {...info2, 'latitude': lat2, 'longitude': lng2},
+              'next_station_info': {...info1, 'latitude': lat1, 'longitude': lng1},
+              'walking': true,
+              'distance': distance.round(),
+            });
+            walkingEdges++;
+          }
+          connectionsAdded++;
+        }
+      }
+    }
+    
+    debugPrint('Walking connections added: $walkingEdges');
+    debugPrint('Final graph has ${graph.length} stations');
+    
     return graph;
   }
   
@@ -1196,6 +1316,123 @@ class SupabaseService {
     
     debugPrint('BFS: No path found after $iterations iterations. Visited ${visited.length} stations.');
     return null;
+  }
+
+  /// BFS to find multiple alternative paths
+  List<List<Map<String, dynamic>>> _bfsMultiplePaths(
+    Map<String, Map<String, List<Map<String, dynamic>>>> graph,
+    String startId,
+    String endId, {
+    int maxPaths = 5,
+  }) {
+    if (!graph.containsKey(startId) || !graph.containsKey(endId)) {
+      return [];
+    }
+    
+    final foundPaths = <List<Map<String, dynamic>>>[];
+    final usedLigneSequences = <String>{}; // Track unique ligne combinations
+    
+    // Queue: (currentStation, currentLigne, path)
+    final queue = <Map<String, dynamic>>[];
+    
+    // Start from all lines at the start station
+    for (final neighbor in graph[startId]?.entries ?? <MapEntry<String, List<Map<String, dynamic>>>>[]) {
+      for (final connection in neighbor.value) {
+        final ligneId = connection['ligne']['id'] as String;
+        queue.add({
+          'station': neighbor.key,
+          'ligne': connection['ligne'],
+          'stationInfo': connection['next_station_info'],
+          'path': [
+            {
+              'from': startId,
+              'to': neighbor.key,
+              'ligne': connection['ligne'],
+              'fromInfo': connection['station_info'],
+              'toInfo': connection['next_station_info'],
+            }
+          ],
+          'visited': {startId, neighbor.key},
+          'ligneSequence': <String>[ligneId],
+        });
+      }
+    }
+    
+    int iterations = 0;
+    const maxIterations = 50000;
+    const maxPathLength = 15;
+    
+    while (queue.isNotEmpty && iterations < maxIterations && foundPaths.length < maxPaths) {
+      iterations++;
+      final current = queue.removeAt(0);
+      final currentStation = current['station'] as String;
+      final currentLigne = current['ligne'] as Map<String, dynamic>;
+      final path = current['path'] as List<Map<String, dynamic>>;
+      final visited = current['visited'] as Set<String>;
+      final ligneSequence = List<String>.from(current['ligneSequence'] as List);
+      
+      // Found destination
+      if (currentStation == endId) {
+        // Check if this is a unique path (different ligne sequence)
+        final sequenceKey = ligneSequence.join('-');
+        if (!usedLigneSequences.contains(sequenceKey)) {
+          usedLigneSequences.add(sequenceKey);
+          foundPaths.add(List<Map<String, dynamic>>.from(path));
+          debugPrint('BFS: Found path ${foundPaths.length} using lignes: $sequenceKey');
+        }
+        continue; // Continue searching for more paths
+      }
+      
+      // Limit path length
+      if (path.length > maxPathLength) continue;
+      
+      // Explore neighbors
+      for (final neighbor in graph[currentStation]?.entries ?? <MapEntry<String, List<Map<String, dynamic>>>>[]) {
+        final neighborStation = neighbor.key;
+        
+        // Skip already visited stations in this path
+        if (visited.contains(neighborStation)) continue;
+        
+        for (final connection in neighbor.value) {
+          final ligneId = connection['ligne']['id'] as String;
+          
+          final newPath = List<Map<String, dynamic>>.from(path);
+          final newLigneSequence = List<String>.from(ligneSequence);
+          
+          // Check if this is a transfer (different ligne)
+          if (ligneId != currentLigne['id']) {
+            newPath.add({
+              'transfer': true,
+              'at': currentStation,
+              'atInfo': current['stationInfo'],
+              'fromLigne': currentLigne,
+              'toLigne': connection['ligne'],
+            });
+            newLigneSequence.add(ligneId);
+          }
+          
+          newPath.add({
+            'from': currentStation,
+            'to': neighborStation,
+            'ligne': connection['ligne'],
+            'fromInfo': connection['station_info'],
+            'toInfo': connection['next_station_info'],
+          });
+          
+          queue.add({
+            'station': neighborStation,
+            'ligne': connection['ligne'],
+            'stationInfo': connection['next_station_info'],
+            'path': newPath,
+            'visited': {...visited, neighborStation},
+            'ligneSequence': newLigneSequence,
+          });
+        }
+      }
+    }
+    
+    debugPrint('BFS: Found ${foundPaths.length} unique paths after $iterations iterations');
+    return foundPaths;
   }
 
   /// Convert BFS path to route segments

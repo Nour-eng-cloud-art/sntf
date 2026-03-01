@@ -28,6 +28,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _availableStations = [];
   Map<String, dynamic>? _routeResult; // Multi-hop route result
   List<Map<String, dynamic>> _routeSegments = []; // Route segments with transfers
+  List<Map<String, dynamic>> _allRouteOptions = []; // All available routes
+  int _selectedRouteIndex = 0; // Currently selected route
   bool _isSearching = false;
   bool _showStationPicker = false;
   bool _isSelectingStart = true;
@@ -66,6 +68,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _isSearching = true;
       _routeResult = null;
       _routeSegments = [];
+      _allRouteOptions = [];
+      _selectedRouteIndex = 0;
       _totalTransfers = 0;
     });
     
@@ -77,8 +81,16 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       
       setState(() {
         _routeResult = result;
-        _routeSegments = List<Map<String, dynamic>>.from(result['segments'] ?? []);
-        _totalTransfers = result['totalTransfers'] ?? 0;
+        _allRouteOptions = List<Map<String, dynamic>>.from(result['allRouteOptions'] ?? []);
+        _selectedRouteIndex = 0;
+        
+        if (_allRouteOptions.isNotEmpty) {
+          _routeSegments = List<Map<String, dynamic>>.from(_allRouteOptions[0]['segments'] ?? []);
+          _totalTransfers = _allRouteOptions[0]['totalTransfers'] ?? 0;
+        } else {
+          _routeSegments = List<Map<String, dynamic>>.from(result['segments'] ?? []);
+          _totalTransfers = result['totalTransfers'] ?? 0;
+        }
         _isSearching = false;
       });
       
@@ -92,6 +104,19 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         _isSearching = false;
       });
     }
+  }
+
+  /// Select a different route option
+  void _selectRoute(int index) {
+    if (index < 0 || index >= _allRouteOptions.length) return;
+    
+    setState(() {
+      _selectedRouteIndex = index;
+      _routeSegments = List<Map<String, dynamic>>.from(_allRouteOptions[index]['segments'] ?? []);
+      _totalTransfers = _allRouteOptions[index]['totalTransfers'] ?? 0;
+    });
+    
+    _fitMapToRoute();
   }
 
   /// Fit map to show all points of the route
@@ -160,6 +185,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _endStation = null;
       _routeSegments = [];
       _routeResult = null;
+      _allRouteOptions = [];
+      _selectedRouteIndex = 0;
       _totalTransfers = 0;
     });
   }
@@ -172,6 +199,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _endStation = temp;
       _routeSegments = [];
       _routeResult = null;
+      _allRouteOptions = [];
+      _selectedRouteIndex = 0;
     });
     
     if (_startStation != null && _endStation != null) {
@@ -572,6 +601,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                       _startStation = null;
                       _routeSegments = [];
                       _routeResult = null;
+                      _allRouteOptions = [];
+                      _selectedRouteIndex = 0;
                     }),
                     theme: theme,
                     isDark: isDark,
@@ -621,6 +652,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                       _endStation = null;
                       _routeSegments = [];
                       _routeResult = null;
+                      _allRouteOptions = [];
+                      _selectedRouteIndex = 0;
                     }),
                     theme: theme,
                     isDark: isDark,
@@ -653,32 +686,110 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   else if (_routeSegments.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _totalTransfers > 0 ? LucideIcons.repeat : LucideIcons.check,
-                              size: 16,
-                              color: Colors.green,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _totalTransfers > 0
-                                  ? '${_routeSegments.length} segment${_routeSegments.length > 1 ? 's' : ''} · $_totalTransfers correspondance${_totalTransfers > 1 ? 's' : ''}'
-                                  : 'Ligne directe trouvée',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _totalTransfers > 0 ? LucideIcons.repeat : LucideIcons.check,
+                                  size: 16,
+                                  color: Colors.green,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _totalTransfers > 0
+                                      ? '${_routeSegments.length} segment${_routeSegments.length > 1 ? 's' : ''} · $_totalTransfers correspondance${_totalTransfers > 1 ? 's' : ''}'
+                                      : 'Ligne directe trouvée',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Route selector when multiple options available
+                          if (_allRouteOptions.length > 1) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 36,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                shrinkWrap: true,
+                                itemCount: _allRouteOptions.length,
+                                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                itemBuilder: (context, index) {
+                                  final option = _allRouteOptions[index];
+                                  final isSelected = index == _selectedRouteIndex;
+                                  final segments = option['segments'] as List;
+                                  final transfers = option['totalTransfers'] ?? 0;
+                                  
+                                  // Get ligne info for display
+                                  String routeLabel = 'Option ${index + 1}';
+                                  if (segments.isNotEmpty) {
+                                    final lignes = segments.map((s) {
+                                      final ligne = s['ligne'] as Map<String, dynamic>?;
+                                      return ligne?['nom_court'] ?? '';
+                                    }).where((s) => s.isNotEmpty).toSet().join(' → ');
+                                    if (lignes.isNotEmpty) routeLabel = lignes;
+                                  }
+                                  
+                                  return GestureDetector(
+                                    onTap: () => _selectRoute(index),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: isSelected 
+                                            ? AppColors.primary 
+                                            : (isDark ? AppColors.darkSurface : Colors.grey.shade100),
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: isSelected ? AppColors.primary : AppColors.grey300,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            routeLabel,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            ),
+                                          ),
+                                          if (transfers > 0) ...[
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              LucideIcons.repeat,
+                                              size: 12,
+                                              color: isSelected ? Colors.white70 : Colors.orange,
+                                            ),
+                                            Text(
+                                              '$transfers',
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                color: isSelected ? Colors.white70 : Colors.orange,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
                     )
                   else if (_startStation != null && _endStation != null)
