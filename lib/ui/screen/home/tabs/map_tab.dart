@@ -35,6 +35,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   bool _isSelectingStart = true;
   String _stationSearchQuery = '';
   int _totalTransfers = 0;
+  
+  // Collapsible panel states
+  bool _isSearchPanelMinimized = false;
+  bool _isItineraryPanelMinimized = false;
 
   @override
   void initState() {
@@ -570,12 +574,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             ),
           ),
 
-        // Route Planning Card
+        // Route Planning Card (Collapsible)
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Container(
-              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSurface : Colors.white,
                 borderRadius: BorderRadius.circular(20),
@@ -590,237 +593,291 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Start Point
-                  _buildStationInput(
-                    label: 'Départ',
-                    station: _startStation,
-                    icon: LucideIcons.circleDot,
-                    color: Colors.green,
-                    onTap: () => _openStationPicker(true),
-                    onClear: () => setState(() {
-                      _startStation = null;
-                      _routeSegments = [];
-                      _routeResult = null;
-                      _allRouteOptions = [];
-                      _selectedRouteIndex = 0;
-                    }),
-                    theme: theme,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 8),
-                  // Swap button
-                  Row(
-                    children: [
-                      const SizedBox(width: 20),
-                      Container(
-                        height: 24,
-                        width: 2,
-                        decoration: BoxDecoration(
-                          color: AppColors.grey300,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                      const Spacer(),
-                      if (_startStation != null && _endStation != null)
-                        GestureDetector(
-                          onTap: _swapStations,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              LucideIcons.arrowUpDown,
-                              size: 18,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // End Point
-                  _buildStationInput(
-                    label: 'Arrivée',
-                    station: _endStation,
-                    icon: LucideIcons.mapPin,
-                    color: Colors.red,
-                    onTap: () => _openStationPicker(false),
-                    onClear: () => setState(() {
-                      _endStation = null;
-                      _routeSegments = [];
-                      _routeResult = null;
-                      _allRouteOptions = [];
-                      _selectedRouteIndex = 0;
-                    }),
-                    theme: theme,
-                    isDark: isDark,
-                  ),
-                  // Found routes indicator
-                  if (_isSearching)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
+                  // Collapsible header
+                  InkWell(
+                    onTap: () => setState(() => _isSearchPanelMinimized = !_isSearchPanelMinimized),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
+                          Icon(
+                            LucideIcons.search,
+                            size: 20,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _isSearchPanelMinimized && (_startStation != null || _endStation != null)
+                                  ? '${_startStation?['nom'] ?? '...'} → ${_endStation?['nom'] ?? '...'}'
+                                  : 'Recherche d\'itinéraire',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Recherche des lignes...',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.grey500,
+                          AnimatedRotation(
+                            turns: _isSearchPanelMinimized ? 0 : 0.5,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              LucideIcons.chevronDown,
+                              size: 20,
+                              color: AppColors.grey400,
                             ),
                           ),
                         ],
                       ),
-                    )
-                  else if (_routeSegments.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
+                    ),
+                  ),
+                  // Expandable content
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: _isSearchPanelMinimized
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  _totalTransfers > 0 ? LucideIcons.repeat : LucideIcons.check,
-                                  size: 16,
+                                // Start Point
+                                _buildStationInput(
+                                  label: 'Départ',
+                                  station: _startStation,
+                                  icon: LucideIcons.circleDot,
                                   color: Colors.green,
+                                  onTap: () => _openStationPicker(true),
+                                  onClear: () => setState(() {
+                                    _startStation = null;
+                                    _routeSegments = [];
+                                    _routeResult = null;
+                                    _allRouteOptions = [];
+                                    _selectedRouteIndex = 0;
+                                  }),
+                                  theme: theme,
+                                  isDark: isDark,
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _totalTransfers > 0
-                                      ? '${_routeSegments.length} segment${_routeSegments.length > 1 ? 's' : ''} · $_totalTransfers correspondance${_totalTransfers > 1 ? 's' : ''}'
-                                      : 'Ligne directe trouvée',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Route selector when multiple options available
-                          if (_allRouteOptions.length > 1) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              height: 36,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                shrinkWrap: true,
-                                itemCount: _allRouteOptions.length,
-                                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                                itemBuilder: (context, index) {
-                                  final option = _allRouteOptions[index];
-                                  final isSelected = index == _selectedRouteIndex;
-                                  final segments = option['segments'] as List;
-                                  final transfers = option['totalTransfers'] ?? 0;
-                                  
-                                  // Get ligne info for display
-                                  String routeLabel = 'Option ${index + 1}';
-                                  if (segments.isNotEmpty) {
-                                    final lignes = segments.map((s) {
-                                      final ligne = s['ligne'] as Map<String, dynamic>?;
-                                      return ligne?['nom_court'] ?? '';
-                                    }).where((s) => s.isNotEmpty).toSet().join(' → ');
-                                    if (lignes.isNotEmpty) routeLabel = lignes;
-                                  }
-                                  
-                                  return GestureDetector(
-                                    onTap: () => _selectRoute(index),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                const SizedBox(height: 8),
+                                // Swap button
+                                Row(
+                                  children: [
+                                    const SizedBox(width: 20),
+                                    Container(
+                                      height: 24,
+                                      width: 2,
                                       decoration: BoxDecoration(
-                                        color: isSelected 
-                                            ? AppColors.primary 
-                                            : (isDark ? AppColors.darkSurface : Colors.grey.shade100),
-                                        borderRadius: BorderRadius.circular(18),
-                                        border: Border.all(
-                                          color: isSelected ? AppColors.primary : AppColors.grey300,
-                                          width: 1,
+                                        color: AppColors.grey300,
+                                        borderRadius: BorderRadius.circular(1),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    if (_startStation != null && _endStation != null)
+                                      GestureDetector(
+                                        onTap: _swapStations,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Icon(
+                                            LucideIcons.arrowUpDown,
+                                            size: 18,
+                                            color: AppColors.primary,
+                                          ),
                                         ),
+                                      ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                // End Point
+                                _buildStationInput(
+                                  label: 'Arrivée',
+                                  station: _endStation,
+                                  icon: LucideIcons.mapPin,
+                                  color: Colors.red,
+                                  onTap: () => _openStationPicker(false),
+                                  onClear: () => setState(() {
+                                    _endStation = null;
+                                    _routeSegments = [];
+                                    _routeResult = null;
+                                    _allRouteOptions = [];
+                                    _selectedRouteIndex = 0;
+                                  }),
+                                  theme: theme,
+                                  isDark: isDark,
+                                ),
+                                // Found routes indicator
+                                if (_isSearching)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Recherche des lignes...',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: AppColors.grey500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else if (_routeSegments.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                _totalTransfers > 0 ? LucideIcons.repeat : LucideIcons.check,
+                                                size: 16,
+                                                color: Colors.green,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                _totalTransfers > 0
+                                                    ? '${_routeSegments.length} segment${_routeSegments.length > 1 ? 's' : ''} · $_totalTransfers correspondance${_totalTransfers > 1 ? 's' : ''}'
+                                                    : 'Ligne directe trouvée',
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  color: Colors.green,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        // Route selector when multiple options available
+                                        if (_allRouteOptions.length > 1) ...[
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            height: 36,
+                                            child: ListView.separated(
+                                              scrollDirection: Axis.horizontal,
+                                              shrinkWrap: true,
+                                              itemCount: _allRouteOptions.length,
+                                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                              itemBuilder: (context, index) {
+                                                final option = _allRouteOptions[index];
+                                                final isSelected = index == _selectedRouteIndex;
+                                                final segments = option['segments'] as List;
+                                                final transfers = option['totalTransfers'] ?? 0;
+                                                
+                                                // Get ligne info for display
+                                                String routeLabel = 'Option ${index + 1}';
+                                                if (segments.isNotEmpty) {
+                                                  final lignes = segments.map((s) {
+                                                    final ligne = s['ligne'] as Map<String, dynamic>?;
+                                                    return ligne?['nom_court'] ?? '';
+                                                  }).where((s) => s.isNotEmpty).toSet().join(' → ');
+                                                  if (lignes.isNotEmpty) routeLabel = lignes;
+                                                }
+                                                
+                                                return GestureDetector(
+                                                  onTap: () => _selectRoute(index),
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected 
+                                                          ? AppColors.primary 
+                                                          : (isDark ? AppColors.darkSurface : Colors.grey.shade100),
+                                                      borderRadius: BorderRadius.circular(18),
+                                                      border: Border.all(
+                                                        color: isSelected ? AppColors.primary : AppColors.grey300,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          routeLabel,
+                                                          style: theme.textTheme.bodySmall?.copyWith(
+                                                            color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                          ),
+                                                        ),
+                                                        if (transfers > 0) ...[
+                                                          const SizedBox(width: 4),
+                                                          Icon(
+                                                            LucideIcons.repeat,
+                                                            size: 12,
+                                                            color: isSelected ? Colors.white70 : Colors.orange,
+                                                          ),
+                                                          Text(
+                                                            '$transfers',
+                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                              color: isSelected ? Colors.white70 : Colors.orange,
+                                                              fontSize: 10,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  )
+                                else if (_startStation != null && _endStation != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          Icon(
+                                            LucideIcons.messageCircleWarning,
+                                            size: 16,
+                                            color: Colors.orange,
+                                          ),
+                                          const SizedBox(width: 6),
                                           Text(
-                                            routeLabel,
+                                            'Aucune ligne directe trouvée',
                                             style: theme.textTheme.bodySmall?.copyWith(
-                                              color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
-                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                              color: Colors.orange,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
-                                          if (transfers > 0) ...[
-                                            const SizedBox(width: 4),
-                                            Icon(
-                                              LucideIcons.repeat,
-                                              size: 12,
-                                              color: isSelected ? Colors.white70 : Colors.orange,
-                                            ),
-                                            Text(
-                                              '$transfers',
-                                              style: theme.textTheme.bodySmall?.copyWith(
-                                                color: isSelected ? Colors.white70 : Colors.orange,
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          ],
                                         ],
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                              ],
                             ),
-                          ],
-                        ],
-                      ),
-                    )
-                  else if (_startStation != null && _endStation != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              LucideIcons.messageCircleWarning,
-                              size: 16,
-                              color: Colors.orange,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Aucune ligne directe trouvée',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                          ),
+                  ),
                 ],
               ),
             ),
@@ -880,14 +937,13 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           ),
         ),
 
-        // Found Routes List
+        // Found Routes List (Collapsible)
         if (_routeSegments.isNotEmpty)
           Positioned(
             left: 16,
             right: 16,
             bottom: 16,
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 200),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSurface : Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -903,99 +959,130 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(
-                          LucideIcons.route,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _totalTransfers > 0 ? 'Itinéraire avec correspondance' : 'Ligne directe',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
+                  // Collapsible header
+                  InkWell(
+                    onTap: () => setState(() => _isItineraryPanelMinimized = !_isItineraryPanelMinimized),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            LucideIcons.route,
+                            size: 20,
+                            color: AppColors.primary,
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _routeSegments.length,
-                      itemBuilder: (context, index) {
-                        final segment = _routeSegments[index];
-                        final ligne = segment['ligne'] as Map<String, dynamic>;
-                        final stations = segment['stations'] as List;
-                        final ligneColor = _parseColor(ligne['couleur']);
-                        final isLastSegment = index == _routeSegments.length - 1;
-                        
-                        return Column(
-                          children: [
-                            ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: ligneColor,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  ligne['nom_court'] ?? ligne['nom'] ?? 'Ligne',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                ligne['nom'] ?? 'Segment ${index + 1}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${stations.length} arrêts',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.grey500,
-                                ),
-                              ),
-                              trailing: Icon(
-                                LucideIcons.chevronRight,
-                                size: 18,
-                                color: AppColors.grey400,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _totalTransfers > 0 ? 'Itinéraire avec correspondance' : 'Ligne directe',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            if (!isLastSegment)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      LucideIcons.repeat,
-                                      size: 14,
-                                      color: Colors.orange,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Correspondance',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        );
-                      },
+                          ),
+                          AnimatedRotation(
+                            turns: _isItineraryPanelMinimized ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              LucideIcons.chevronDown,
+                              size: 20,
+                              color: AppColors.grey400,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                  ),
+                  // Expandable content
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: _isItineraryPanelMinimized
+                        ? const SizedBox.shrink()
+                        : ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 180),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Divider(height: 1),
+                                Flexible(
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    itemCount: _routeSegments.length,
+                                    itemBuilder: (context, index) {
+                                      final segment = _routeSegments[index];
+                                      final ligne = segment['ligne'] as Map<String, dynamic>;
+                                      final stations = segment['stations'] as List;
+                                      final ligneColor = _parseColor(ligne['couleur']);
+                                      final isLastSegment = index == _routeSegments.length - 1;
+                                      
+                                      return Column(
+                                        children: [
+                                          ListTile(
+                                            leading: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: ligneColor,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                ligne['nom_court'] ?? ligne['nom'] ?? 'Ligne',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                            title: Text(
+                                              ligne['nom'] ?? 'Segment ${index + 1}',
+                                              style: theme.textTheme.bodyMedium?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              '${stations.length} arrêts',
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                color: AppColors.grey500,
+                                              ),
+                                            ),
+                                            trailing: Icon(
+                                              LucideIcons.chevronRight,
+                                              size: 18,
+                                              color: AppColors.grey400,
+                                            ),
+                                          ),
+                                          if (!isLastSegment)
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    LucideIcons.repeat,
+                                                    size: 14,
+                                                    color: Colors.orange,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'Correspondance',
+                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                      color: Colors.orange,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                   ),
                 ],
               ),
