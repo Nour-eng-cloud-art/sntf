@@ -459,6 +459,9 @@ class _TicketCard extends StatelessWidget {
   void _showQRCodeDialog(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkTheme = theme.brightness == Brightness.dark;
+    final screenSize = MediaQuery.of(context).size;
+    final qrSize = (screenSize.width * 0.5).clamp(150.0, 250.0);
+    final maxSheetHeight = screenSize.height * 0.85;
     
     // Create QR data with all verification info
     final qrData = jsonEncode({
@@ -485,74 +488,80 @@ class _TicketCard extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
         margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDarkTheme ? AppColors.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(24),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.grey300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Title
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(LucideIcons.qrCode, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Votre billet',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.grey300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Présentez ce QR code à l\'agent SNTF',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ),
-              const SizedBox(height: 24),
-              
-              // QR Code
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                const SizedBox(height: 24),
+                
+                // Title
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(LucideIcons.qrCode, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Votre billet',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
-                child: PrettyQrView.data(
-                  data: qrData,
-                  decoration: const PrettyQrDecoration(
-                    shape: PrettyQrSmoothSymbol(
-                      color: AppColors.primaryDark,
+                const SizedBox(height: 8),
+                Text(
+                  'Présentez ce QR code à l\'agent SNTF',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // QR Code - Responsive size
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: SizedBox(
+                    width: qrSize,
+                    height: qrSize,
+                    child: PrettyQrView.data(
+                      data: qrData,
+                      decoration: const PrettyQrDecoration(
+                        shape: PrettyQrSmoothSymbol(
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
               
               // Ticket info summary
               Container(
@@ -620,6 +629,7 @@ class _TicketCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
