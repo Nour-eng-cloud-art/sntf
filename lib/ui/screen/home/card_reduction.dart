@@ -158,6 +158,12 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
   }
 
   void _showQRCodeDialog(BuildContext context, Map<String, dynamic> card, AuthProvider authProvider) {
+    final theme = Theme.of(context);
+    final isDarkTheme = theme.brightness == Brightness.dark;
+    final screenSize = MediaQuery.of(context).size;
+    final qrSize = (screenSize.width * 0.5).clamp(150.0, 250.0);
+    final maxSheetHeight = screenSize.height * 0.85;
+    
     final user = authProvider.user;
     final qrData = {
       'membership_id': card['id']?.toString() ?? '',
@@ -172,107 +178,142 @@ class _CardReductionPageState extends State<CardReductionPage> with SingleTicker
     
     final qrString = qrData.entries.map((e) => '${e.key}:${e.value}').join('|');
     
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'QR Code Abonnement',
-                    style: AppTextStyles.titleLarge.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(LucideIcons.x),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: PrettyQrView.data(
-                  data: qrString,
-                  decoration: const PrettyQrDecoration(
-                    shape: PrettyQrSmoothSymbol(
-                      color: Color(0xFFD4AF37),
-                    ),
-                    image: PrettyQrDecorationImage(
-                      image: AssetImage('images/TransDZ_with_background_white-removebg-preview.png'),
-                      position: PrettyQrDecorationImagePosition.embedded,
-                    ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
+        margin: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDarkTheme ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.grey300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
+                const SizedBox(height: 24),
+                
+                // Title
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildInfoRow('ID Carte', card['id']?.toString().substring(0, 8).toUpperCase() ?? 'N/A'),
-                    const SizedBox(height: 8),
-                    _buildInfoRow('Type', _getDisplayType(card['type']?.toString())),
-                    const SizedBox(height: 8),
-                    _buildInfoRow('Utilisateur', user?.fullName ?? 'N/A'),
-                    const SizedBox(height: 8),
-                    _buildInfoRow('Valide jusqu\'au', _formatDate(card['date_fin'])),
+                    Icon(LucideIcons.qrCode, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Votre Carte',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Présentez ce QR code au contrôleur',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                const SizedBox(height: 8),
+                Text(
+                  'Présentez ce QR code au contrôleur',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+                
+                // QR Code - Responsive size
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: SizedBox(
+                    width: qrSize,
+                    height: qrSize,
+                    child: PrettyQrView.data(
+                      data: qrString,
+                      decoration: const PrettyQrDecoration(
+                        shape: PrettyQrSmoothSymbol(
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Card info summary
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDarkTheme 
+                        ? AppColors.darkSurfaceVariant 
+                        : AppColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _QRInfoRow(
+                        label: 'ID Carte',
+                        value: card['id']?.toString().substring(0, 8).toUpperCase() ?? 'N/A',
+                        isHighlighted: true,
+                      ),
+                      const Divider(height: 16),
+                      _QRInfoRow(
+                        label: 'Type',
+                        value: _getDisplayType(card['type']?.toString()),
+                      ),
+                      const SizedBox(height: 8),
+                      _QRInfoRow(
+                        label: 'Titulaire',
+                        value: user?.fullName ?? 'N/A',
+                      ),
+                      const SizedBox(height: 8),
+                      _QRInfoRow(
+                        label: 'Valide jusqu\'au',
+                        value: _formatDate(card['date_fin']),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Fermer'),
+                  ),
+                ),
+              ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: AppColors.grey600,
-            fontSize: 14,
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
+    ),
     );
   }
 
@@ -540,6 +581,45 @@ class _AddCardFormState extends State<AddCardForm> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Info row helper widget for QR dialog
+class _QRInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isHighlighted;
+
+  const _QRInfoRow({
+    required this.label,
+    required this.value,
+    this.isHighlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isHighlighted ? FontWeight.bold : FontWeight.w600,
+            color: isHighlighted 
+                ? AppColors.primary 
+                : theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }

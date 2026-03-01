@@ -243,7 +243,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
   
-  /// Native Google Sign-In for Android/iOS
   Future<bool> _signInWithGoogleNative() async {
     // Get the Web Client ID from environment
     final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];

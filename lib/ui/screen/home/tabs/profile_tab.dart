@@ -152,11 +152,6 @@ class _ProfileTabState extends State<ProfileTab> {
               title: 'Préférences',
               items: [
                 _MenuItem(
-                  icon: LucideIcons.bell,
-                  label: 'Notifications',
-                  onTap: () {},
-                ),
-                _MenuItem(
                   icon: isDark ? LucideIcons.sun : LucideIcons.moon,
                   label: 'Thème ${isDark ? 'clair' : 'sombre'}',
                   onTap: () {

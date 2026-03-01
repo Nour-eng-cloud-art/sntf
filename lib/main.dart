@@ -113,16 +113,13 @@ class MyAppState extends State<MyApp> {
         title: 'transDZ',
         debugShowCheckedModeBanner: false,
          
-        // Apply light theme
         theme: AppTheme.lightTheme,
         
-        // Apply dark theme
         darkTheme: AppTheme.darkTheme,
         
-        // Theme mode (system, light, or dark)
         themeMode: _themeProvider.themeMode,
         
-        // Use a builder to check auth state and redirect
+   
         home: Consumer<AuthProvider>(
           builder: (context, authProvider, _) {
             // Show loading while checking auth state

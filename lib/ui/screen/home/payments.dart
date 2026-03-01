@@ -622,6 +622,36 @@ class _PaymentPageState extends State<PaymentPage>
     );
   }
 
+  /// Calculate subscription end date based on type
+  DateTime _getEndDateForType(String? type, DateTime startDate) {
+    switch (type?.toLowerCase()) {
+      case 'sntf_1_day_pass':
+        // Pass Journalier - 1 day
+        return startDate.add(const Duration(days: 1));
+      case 'sntf_weekly_pass':
+        // Pass Hebdomadaire - 1 week
+        return startDate.add(const Duration(days: 7));
+      case 'sntf_monthly_pass':
+        // Pass Mensuel - 1 month
+        return DateTime(startDate.year, startDate.month + 1, startDate.day);
+      case 'university_reduce_tram':
+        // Étudiant - 1 year
+        return DateTime(startDate.year + 1, startDate.month, startDate.day);
+      case 'bus_tram':
+        // Bus + Tram ticket - 1 day
+        return startDate.add(const Duration(days: 1));
+      case 'children_reduce_tram_bus':
+        // Pass Enfant - 1 year
+        return DateTime(startDate.year + 1, startDate.month, startDate.day);
+      case 'airport_reduce_tram_bus':
+        // Navette Aéroport - 1 day
+        return startDate.add(const Duration(days: 1));
+      default:
+        // Default to 1 day
+        return startDate.add(const Duration(days: 1));
+    }
+  }
+
   Future<void> _processPayment() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -638,7 +668,7 @@ class _PaymentPageState extends State<PaymentPage>
       final currentService = _services[_currentCardIndex];
       final serviceType = currentService['type'] as String?;
       final now = DateTime.now();
-      final endDate = now.add(const Duration(days: 365)); // 1 year subscription
+      final endDate = _getEndDateForType(serviceType, now);
 
       final abonnement = {
         'user_id': authProvider.userId,
