@@ -9,6 +9,7 @@ class ItineraryCard extends StatelessWidget {
   final Itinerary itinerary;
   final bool isSelected;
   final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
   final bool showDetails;
 
   const ItineraryCard({
@@ -16,6 +17,7 @@ class ItineraryCard extends StatelessWidget {
     required this.itinerary,
     this.isSelected = false,
     this.onTap,
+    this.onDoubleTap,
     this.showDetails = false,
   });
 
@@ -34,6 +36,7 @@ class ItineraryCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onTap,
+        onDoubleTap: onDoubleTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
