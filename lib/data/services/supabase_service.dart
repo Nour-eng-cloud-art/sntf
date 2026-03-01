@@ -72,6 +72,39 @@ class SupabaseService {
     );
   }
   
+  /// Sign in with OAuth provider (Google, Apple, etc.)
+  Future<bool> signInWithOAuth(OAuthProvider provider) async {
+    final response = await client.auth.signInWithOAuth(
+      provider,
+      redirectTo: 'io.supabase.sntf://login-callback/',
+    );
+    return response;
+  }
+  
+  /// Sign in with Google ID Token (native)
+  Future<AuthResponse> signInWithGoogleIdToken({
+    required String idToken,
+    String? accessToken,
+  }) async {
+    return await client.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+  }
+  
+  /// Sign in with Apple ID Token (native)
+  Future<AuthResponse> signInWithAppleIdToken({
+    required String idToken,
+    String? nonce,
+  }) async {
+    return await client.auth.signInWithIdToken(
+      provider: OAuthProvider.apple,
+      idToken: idToken,
+      nonce: nonce,
+    );
+  }
+  
   // ==================== PROFILES ====================
   
   /// Get user profile by ID

@@ -1,5 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show Platform;
+import 'dart:math';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sntf/data/models/user.dart';
 import 'package:sntf/data/services/supabase_service.dart';
@@ -208,6 +215,202 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+  
+  /// Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      _status = AuthStatus.loading;
+      _errorMessage = null;
+      notifyListeners();
+      
+      // Check if we're on mobile (Android/iOS) or desktop/web
+      final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+      
+      if (isMobile) {
+        // Use native Google Sign-In on mobile
+        return await _signInWithGoogleNative();
+      } else {
+        // Use web OAuth flow on desktop/web
+        return await _signInWithGoogleWeb();
+      }
+    } catch (e) {
+      debugPrint('Google sign in error: $e');
+      _errorMessage = 'Erreur Google: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e.toString()}';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Native Google Sign-In for Android/iOS
+  Future<bool> _signInWithGoogleNative() async {
+    // Get the Web Client ID from environment
+    final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+    if (webClientId == null || webClientId.isEmpty || webClientId.contains('YOUR_')) {
+      _errorMessage = 'Google Sign-In non configuré. Veuillez ajouter GOOGLE_WEB_CLIENT_ID dans .env';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+    
+    // Use native Google Sign-In with serverClientId for idToken
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      scopes: ['email', 'profile'],
+      serverClientId: webClientId,
+    );
+      
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return false; // User cancelled
+    }
+    
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+    
+    if (idToken == null) {
+      _errorMessage = 'Erreur lors de la connexion Google';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+    
+    final response = await _supabase.signInWithGoogleIdToken(
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+    
+    if (response.user != null) {
+      await _loadUserProfile(response.user!.id);
+      return _status == AuthStatus.authenticated;
+    } else {
+      _errorMessage = 'Erreur lors de la connexion Google';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Web OAuth flow for Google Sign-In (desktop/web)
+  Future<bool> _signInWithGoogleWeb() async {
+    try {
+      // Use Supabase OAuth redirect flow
+      final success = await _supabase.signInWithOAuth(OAuthProvider.google);
+      
+      if (!success) {
+        _errorMessage = 'Erreur lors de la connexion Google';
+        _status = AuthStatus.error;
+        notifyListeners();
+        return false;
+      }
+      
+      // Wait for auth state to change (user logs in via browser)
+      // The auth state listener will handle the rest
+      return true;
+    } on AuthException catch (e) {
+      debugPrint('Google web sign in AuthException: ${e.message}');
+      _errorMessage = _translateAuthError(e.message);
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Sign in with Apple
+  Future<bool> signInWithApple() async {
+    try {
+      _status = AuthStatus.loading;
+      _errorMessage = null;
+      notifyListeners();
+      
+      // Check if we're on mobile (iOS/macOS) or desktop/web
+      final bool isAppleNativeSupported = !kIsWeb && (Platform.isIOS || Platform.isMacOS);
+      
+      if (isAppleNativeSupported) {
+        return await _signInWithAppleNative();
+      } else {
+        // Use web OAuth flow on non-Apple platforms
+        return await _signInWithAppleWeb();
+      }
+    } catch (e) {
+      debugPrint('Apple sign in error: $e');
+      _errorMessage = 'Erreur Apple: ${e.toString().length > 100 ? e.toString().substring(0, 100) : e.toString()}';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Native Apple Sign-In for iOS/macOS
+  Future<bool> _signInWithAppleNative() async {
+    // Generate a random nonce for security
+    final rawNonce = _generateNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: hashedNonce,
+    );
+    
+    final idToken = credential.identityToken;
+    if (idToken == null) {
+      _errorMessage = 'Erreur lors de la connexion Apple';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+    
+    final response = await _supabase.signInWithAppleIdToken(
+      idToken: idToken,
+      nonce: rawNonce,
+    );
+    
+    if (response.user != null) {
+      await _loadUserProfile(response.user!.id);
+      return _status == AuthStatus.authenticated;
+    } else {
+      _errorMessage = 'Erreur lors de la connexion Apple';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Web OAuth flow for Apple Sign-In
+  Future<bool> _signInWithAppleWeb() async {
+    try {
+      // Use Supabase OAuth redirect flow
+      final success = await _supabase.signInWithOAuth(OAuthProvider.apple);
+      
+      if (!success) {
+        _errorMessage = 'Erreur lors de la connexion Apple';
+        _status = AuthStatus.error;
+        notifyListeners();
+        return false;
+      }
+      
+      // The auth state listener will handle the rest
+      return true;
+    } on AuthException catch (e) {
+      debugPrint('Apple web sign in AuthException: ${e.message}');
+      _errorMessage = _translateAuthError(e.message);
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Generate a random nonce for Apple Sign-In
+  String _generateNonce([int length = 32]) {
+    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
   }
   
   /// Sign out

@@ -214,7 +214,7 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
                         
                         const SizedBox(height: 40),
                         
-                        // Email Field
+                        
                         AnimatedTextField(
                           controller: _emailController,
                           label: 'Email',
@@ -309,60 +309,6 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
                           icon: Icons.login_rounded,
                         ),
                         
-                        const SizedBox(height: 24),
-                        
-                        // Divider
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(
-                                color: isDark
-                                    ? AppColors.grey700
-                                    : AppColors.grey300,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              child: Text(
-                                'ou continuer avec',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(
-                                color: isDark
-                                    ? AppColors.grey700
-                                    : AppColors.grey300,
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Social Login Buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _SocialButton(
-                                icon: Icons.g_mobiledata_rounded,
-                                label: 'Google',
-                                onPressed: () {},
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _SocialButton(
-                                icon: Icons.apple_rounded,
-                                label: 'Apple',
-                                onPressed: () {},
-                              ),
-                            ),
-                          ],
-                        ),
-                        
                         const SizedBox(height: 32),
                         
                         // Sign up link
@@ -401,80 +347,6 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  const _SocialButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  @override
-  State<_SocialButton> createState() => _SocialButtonState();
-}
-
-class _SocialButtonState extends State<_SocialButton> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 54,
-        decoration: BoxDecoration(
-          color: isDark
-              ? AppColors.darkSurfaceVariant
-              : AppColors.lightSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? AppColors.grey700 : AppColors.grey300,
-          ),
-          boxShadow: _isPressed
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-        ),
-        transform: _isPressed
-            ? Matrix4.translationValues(0, 2, 0)
-            : Matrix4.identity(),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              widget.icon,
-              size: 24,
-              color: isDark ? AppColors.grey300 : AppColors.grey700,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              widget.label,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
         ),
       ),
     );
