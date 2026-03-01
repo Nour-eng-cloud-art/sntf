@@ -31,6 +31,11 @@ class RouteMapScreen extends StatelessWidget {
             );
           }
 
+          // Calculate bottom padding for map to account for the draggable sheet
+          final screenHeight = MediaQuery.of(context).size.height;
+          final initialSheetHeight = screenHeight * 0.35; // matches initialChildSize
+          final mapBottomPadding = initialSheetHeight + 20; // extra space for controls
+
           return Stack(
             children: [
               // Full screen map
@@ -40,6 +45,8 @@ class RouteMapScreen extends StatelessWidget {
                 showControls: true,
                 interactiveMode: true,
                 onClose: () => Navigator.of(context).pop(),
+                bottomPadding: mapBottomPadding,
+                topPadding: 80, // Account for close button and status bar
               ),
 
               // Bottom details sheet

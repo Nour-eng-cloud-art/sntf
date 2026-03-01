@@ -15,6 +15,10 @@ class RouteMapView extends StatefulWidget {
   final bool interactiveMode;
   final double initialZoom;
   final VoidCallback? onClose;
+  /// Extra padding at the bottom to account for overlaying UI elements (e.g., bottom sheets)
+  final double bottomPadding;
+  /// Extra padding at the top to account for overlaying UI elements (e.g., app bars)
+  final double topPadding;
 
   const RouteMapView({
     super.key,
@@ -24,6 +28,8 @@ class RouteMapView extends StatefulWidget {
     this.interactiveMode = true,
     this.initialZoom = 13.0,
     this.onClose,
+    this.bottomPadding = 50.0,
+    this.topPadding = 50.0,
   });
 
   @override
@@ -107,7 +113,12 @@ class _RouteMapViewState extends State<RouteMapView> {
     _mapController.fitCamera(
       CameraFit.bounds(
         bounds: bounds,
-        padding: const EdgeInsets.all(50),
+        padding: EdgeInsets.only(
+          top: widget.topPadding,
+          left: 50,
+          right: 50,
+          bottom: widget.bottomPadding,
+        ),
       ),
     );
   }
@@ -125,7 +136,12 @@ class _RouteMapViewState extends State<RouteMapView> {
           options: MapOptions(
             initialCameraFit: CameraFit.bounds(
               bounds: bounds,
-              padding: const EdgeInsets.all(50),
+              padding: EdgeInsets.only(
+                top: widget.topPadding,
+                left: 50,
+                right: 50,
+                bottom: widget.bottomPadding,
+              ),
             ),
             interactionOptions: InteractionOptions(
               flags: widget.interactiveMode
@@ -156,7 +172,7 @@ class _RouteMapViewState extends State<RouteMapView> {
         if (widget.showControls)
           Positioned(
             right: 16,
-            bottom: 16,
+            bottom: widget.bottomPadding > 50 ? widget.bottomPadding - 30 : 16,
             child: Column(
               children: [
                 // Fit bounds button
