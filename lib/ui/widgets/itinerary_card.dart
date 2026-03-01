@@ -279,14 +279,14 @@ class _DetailedSegments extends StatefulWidget {
 }
 
 class _DetailedSegmentsState extends State<_DetailedSegments> {
-  bool _isExpanded = true;
+  bool _isExpanded = false;
   final Set<int> _expandedSegments = {};
   
   @override
   void initState() {
     super.initState();
     // Start with all segments collapsed
-    _isExpanded = true;
+    _isExpanded = false;
   }
 
   @override
