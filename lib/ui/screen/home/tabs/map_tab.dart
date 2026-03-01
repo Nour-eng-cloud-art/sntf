@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -25,11 +26,13 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   Map<String, dynamic>? _startStation;
   Map<String, dynamic>? _endStation;
   List<Map<String, dynamic>> _availableStations = [];
-  List<Map<String, dynamic>> _foundRoutes = [];
+  Map<String, dynamic>? _routeResult; // Multi-hop route result
+  List<Map<String, dynamic>> _routeSegments = []; // Route segments with transfers
   bool _isSearching = false;
   bool _showStationPicker = false;
   bool _isSelectingStart = true;
   String _stationSearchQuery = '';
+  int _totalTransfers = 0;
 
   @override
   void initState() {
@@ -55,28 +58,32 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     _mapController.move(destLocation, destZoom);
   }
 
-  /// Search for connecting routes
+  /// Search for connecting routes (with transfers if needed)
   Future<void> _searchRoutes() async {
     if (_startStation == null || _endStation == null) return;
     
     setState(() {
       _isSearching = true;
-      _foundRoutes = [];
+      _routeResult = null;
+      _routeSegments = [];
+      _totalTransfers = 0;
     });
     
     try {
-      final routes = await _supabaseService.findConnectingLignes(
+      final result = await _supabaseService.findRoutesWithTransfers(
         _startStation!['id'].toString(),
         _endStation!['id'].toString(),
       );
       
       setState(() {
-        _foundRoutes = routes;
+        _routeResult = result;
+        _routeSegments = List<Map<String, dynamic>>.from(result['segments'] ?? []);
+        _totalTransfers = result['totalTransfers'] ?? 0;
         _isSearching = false;
       });
       
       // Fit map to show the route
-      if (routes.isNotEmpty) {
+      if (_routeSegments.isNotEmpty) {
         _fitMapToRoute();
       }
     } catch (e) {
@@ -94,18 +101,16 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     final points = <LatLng>[];
     
     if (_startStation != null) {
-      final lat = _startStation!['latitude'];
-      final lng = _startStation!['longitude'];
-      if (lat != null && lng != null) {
-        points.add(LatLng(lat.toDouble(), lng.toDouble()));
+      final coords = _extractCoordinates(_startStation!);
+      if (coords != null) {
+        points.add(coords);
       }
     }
     
     if (_endStation != null) {
-      final lat = _endStation!['latitude'];
-      final lng = _endStation!['longitude'];
-      if (lat != null && lng != null) {
-        points.add(LatLng(lat.toDouble(), lng.toDouble()));
+      final coords = _extractCoordinates(_endStation!);
+      if (coords != null) {
+        points.add(coords);
       }
     }
     
@@ -138,7 +143,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         _endStation = station;
       }
       _showStationPicker = false;
-      _foundRoutes = [];
+      _routeSegments = [];
+      _routeResult = null;
     });
     
     // Auto-search when both stations are selected
@@ -152,7 +158,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {
       _startStation = null;
       _endStation = null;
-      _foundRoutes = [];
+      _routeSegments = [];
+      _routeResult = null;
+      _totalTransfers = 0;
     });
   }
 
@@ -162,7 +170,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       final temp = _startStation;
       _startStation = _endStation;
       _endStation = temp;
-      _foundRoutes = [];
+      _routeSegments = [];
+      _routeResult = null;
     });
     
     if (_startStation != null && _endStation != null) {
@@ -175,12 +184,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     
     // Start station marker
     if (_startStation != null) {
-      final lat = _startStation!['latitude'];
-      final lng = _startStation!['longitude'];
-      if (lat != null && lng != null) {
+      final coords = _extractCoordinates(_startStation!);
+      if (coords != null) {
         markers.add(
           Marker(
-            point: LatLng(lat.toDouble(), lng.toDouble()),
+            point: coords,
             width: 50,
             height: 50,
             child: Container(
@@ -209,12 +217,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     
     // End station marker
     if (_endStation != null) {
-      final lat = _endStation!['latitude'];
-      final lng = _endStation!['longitude'];
-      if (lat != null && lng != null) {
+      final coords = _extractCoordinates(_endStation!);
+      if (coords != null) {
         markers.add(
           Marker(
-            point: LatLng(lat.toDouble(), lng.toDouble()),
+            point: coords,
             width: 50,
             height: 50,
             child: Container(
@@ -241,42 +248,85 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       }
     }
     
-    // Station markers along routes
-    for (final route in _foundRoutes) {
-      final stations = route['stations'] as List?;
+    // Transfer markers and intermediate stations
+    for (int segIndex = 0; segIndex < _routeSegments.length; segIndex++) {
+      final segment = _routeSegments[segIndex];
+      final stations = segment['stations'] as List?;
+      final ligne = segment['ligne'] as Map<String, dynamic>?;
+      final ligneColor = _parseColor(ligne?['couleur']);
+      
       if (stations == null) continue;
       
-      for (final stop in stations) {
+      for (int i = 0; i < stations.length; i++) {
+        final stop = stations[i];
         final station = stop['stations'] as Map<String, dynamic>?;
         if (station == null) continue;
         
-        final lat = station['latitude'];
-        final lng = station['longitude'];
-        if (lat == null || lng == null) continue;
+        final coords = _extractCoordinates(station);
+        if (coords == null) continue;
         
         // Skip if it's start or end station
         if (_startStation != null && station['id'] == _startStation!['id']) continue;
         if (_endStation != null && station['id'] == _endStation!['id']) continue;
         
-        markers.add(
-          Marker(
-            point: LatLng(lat.toDouble(), lng.toDouble()),
-            width: 30,
-            height: 30,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary, width: 2),
-              ),
-              child: Icon(
-                LucideIcons.circle,
-                color: AppColors.primary,
-                size: 12,
+        // Check if this is a transfer point (last station of current segment, not the final segment)
+        final isTransfer = i == stations.length - 1 && segIndex < _routeSegments.length - 1;
+        
+        if (isTransfer) {
+          // Transfer marker - larger and different style
+          markers.add(
+            Marker(
+              point: coords,
+              width: 40,
+              height: 40,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withOpacity(0.5),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  LucideIcons.repeat,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
-          ),
-        );
+          );
+        } else {
+          // Regular intermediate station marker
+          markers.add(
+            Marker(
+              point: coords,
+              width: 24,
+              height: 24,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: ligneColor, width: 2),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: ligneColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
       }
     }
     
@@ -286,29 +336,23 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   List<Polyline> _buildPolylines() {
     final polylines = <Polyline>[];
     
-    final colors = [
-      AppColors.primary,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-    ];
-    
-    int colorIndex = 0;
-    
-    for (final route in _foundRoutes) {
-      final stations = route['stations'] as List?;
+    // Draw each segment with its ligne color
+    for (final segment in _routeSegments) {
+      final stations = segment['stations'] as List?;
+      final ligne = segment['ligne'] as Map<String, dynamic>?;
+      
       if (stations == null || stations.isEmpty) continue;
       
+      final ligneColor = _parseColor(ligne?['couleur']);
       final points = <LatLng>[];
       
       for (final stop in stations) {
         final station = stop['stations'] as Map<String, dynamic>?;
         if (station == null) continue;
         
-        final lat = station['latitude'];
-        final lng = station['longitude'];
-        if (lat != null && lng != null) {
-          points.add(LatLng(lat.toDouble(), lng.toDouble()));
+        final coords = _extractCoordinates(station);
+        if (coords != null) {
+          points.add(coords);
         }
       }
       
@@ -316,15 +360,116 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         polylines.add(
           Polyline(
             points: points,
-            color: colors[colorIndex % colors.length],
-            strokeWidth: 4,
+            color: ligneColor,
+            strokeWidth: 5,
           ),
         );
-        colorIndex++;
       }
     }
     
     return polylines;
+  }
+
+  /// Extract coordinates from station data (handles multiple formats)
+  LatLng? _extractCoordinates(Map<String, dynamic> station) {
+    // Try direct latitude/longitude
+    if (station.containsKey('latitude') && station.containsKey('longitude')) {
+      final lat = station['latitude'];
+      final lng = station['longitude'];
+      if (lat != null && lng != null) {
+        return LatLng((lat as num).toDouble(), (lng as num).toDouble());
+      }
+    }
+    
+    // Try PostGIS location string
+    if (station.containsKey('location')) {
+      final location = station['location'];
+      if (location is String) {
+        // Try WKT "POINT(lng lat)" format
+        final regex = RegExp(r'POINT\(([^\s]+)\s+([^\)]+)\)');
+        final match = regex.firstMatch(location);
+        if (match != null) {
+          final lng = double.tryParse(match.group(1) ?? '');
+          final lat = double.tryParse(match.group(2) ?? '');
+          if (lat != null && lng != null) {
+            return LatLng(lat, lng);
+          }
+        }
+        
+        // Try WKB hex format
+        if (location.length >= 50 && RegExp(r'^[0-9A-Fa-f]+$').hasMatch(location)) {
+          final coords = _parseWkbHex(location);
+          if (coords != null) {
+            return coords;
+          }
+        }
+      } else if (location is Map) {
+        // GeoJSON format
+        final coordinates = location['coordinates'] as List?;
+        if (coordinates != null && coordinates.length >= 2) {
+          final lng = (coordinates[0] as num).toDouble();
+          final lat = (coordinates[1] as num).toDouble();
+          return LatLng(lat, lng);
+        }
+      }
+    }
+    
+    return null;
+  }
+  
+  /// Parse PostGIS WKB hex format for Point geometry
+  LatLng? _parseWkbHex(String hex) {
+    if (hex.length < 50) return null;
+    
+    try {
+      // Parse byte order (01 = little endian)
+      final byteOrder = int.parse(hex.substring(0, 2), radix: 16);
+      final isLittleEndian = byteOrder == 1;
+      
+      // Skip type (4 bytes) and SRID (4 bytes) = 18 hex chars total from start
+      const coordsStart = 18;
+      
+      // Extract coordinates
+      final xHex = hex.substring(coordsStart, coordsStart + 16);
+      final yHex = hex.substring(coordsStart + 16, coordsStart + 32);
+      
+      final lng = _parseHexDouble(xHex, isLittleEndian);
+      final lat = _parseHexDouble(yHex, isLittleEndian);
+      
+      if (lng != null && lat != null && lat.abs() <= 90 && lng.abs() <= 180) {
+        return LatLng(lat, lng);
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+    
+    return null;
+  }
+  
+  /// Parse hex string to IEEE 754 double
+  double? _parseHexDouble(String hex, bool isLittleEndian) {
+    if (hex.length != 16) return null;
+    
+    try {
+      final bytes = List<int>.generate(8, (i) => int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16));
+      
+      int bits = 0;
+      if (isLittleEndian) {
+        for (int i = 7; i >= 0; i--) {
+          bits = (bits << 8) | bytes[i];
+        }
+      } else {
+        for (final byte in bytes) {
+          bits = (bits << 8) | byte;
+        }
+      }
+      
+      final data = ByteData(8);
+      data.setInt64(0, bits);
+      return data.getFloat64(0);
+    } catch (e) {
+      return null;
+    }
   }
 
   List<Map<String, dynamic>> get _filteredStations {
@@ -425,7 +570,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                     onTap: () => _openStationPicker(true),
                     onClear: () => setState(() {
                       _startStation = null;
-                      _foundRoutes = [];
+                      _routeSegments = [];
+                      _routeResult = null;
                     }),
                     theme: theme,
                     isDark: isDark,
@@ -473,7 +619,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                     onTap: () => _openStationPicker(false),
                     onClear: () => setState(() {
                       _endStation = null;
-                      _foundRoutes = [];
+                      _routeSegments = [];
+                      _routeResult = null;
                     }),
                     theme: theme,
                     isDark: isDark,
@@ -503,7 +650,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                         ],
                       ),
                     )
-                  else if (_foundRoutes.isNotEmpty)
+                  else if (_routeSegments.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Container(
@@ -516,13 +663,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              LucideIcons.check,
+                              _totalTransfers > 0 ? LucideIcons.repeat : LucideIcons.check,
                               size: 16,
                               color: Colors.green,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${_foundRoutes.length} ligne${_foundRoutes.length > 1 ? 's' : ''} trouvée${_foundRoutes.length > 1 ? 's' : ''}',
+                              _totalTransfers > 0
+                                  ? '${_routeSegments.length} segment${_routeSegments.length > 1 ? 's' : ''} · $_totalTransfers correspondance${_totalTransfers > 1 ? 's' : ''}'
+                                  : 'Ligne directe trouvée',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: Colors.green,
                                 fontWeight: FontWeight.w600,
@@ -570,7 +719,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         // Zoom Controls
         Positioned(
           right: 16,
-          bottom: _foundRoutes.isNotEmpty ? 280 : 120,
+          bottom: _routeSegments.isNotEmpty ? 280 : 120,
           child: Column(
             children: [
               _MapButton(
@@ -621,7 +770,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         ),
 
         // Found Routes List
-        if (_foundRoutes.isNotEmpty)
+        if (_routeSegments.isNotEmpty)
           Positioned(
             left: 16,
             right: 16,
@@ -654,7 +803,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Lignes disponibles',
+                          _totalTransfers > 0 ? 'Itinéraire avec correspondance' : 'Ligne directe',
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -667,46 +816,72 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                     child: ListView.builder(
                       shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _foundRoutes.length,
+                      itemCount: _routeSegments.length,
                       itemBuilder: (context, index) {
-                        final route = _foundRoutes[index];
-                        final ligne = route['ligne'] as Map<String, dynamic>;
-                        final stations = route['stations'] as List;
+                        final segment = _routeSegments[index];
+                        final ligne = segment['ligne'] as Map<String, dynamic>;
+                        final stations = segment['stations'] as List;
                         final ligneColor = _parseColor(ligne['couleur']);
+                        final isLastSegment = index == _routeSegments.length - 1;
                         
-                        return ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: ligneColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              ligne['nom_court'] ?? ligne['nom'] ?? 'Ligne',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                        return Column(
+                          children: [
+                            ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: ligneColor,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  ligne['nom_court'] ?? ligne['nom'] ?? 'Ligne',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                ligne['nom'] ?? 'Segment ${index + 1}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${stations.length} arrêts',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.grey500,
+                                ),
+                              ),
+                              trailing: Icon(
+                                LucideIcons.chevronRight,
+                                size: 18,
+                                color: AppColors.grey400,
                               ),
                             ),
-                          ),
-                          title: Text(
-                            ligne['nom'] ?? 'Ligne ${index + 1}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${stations.length} arrêts',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.grey500,
-                            ),
-                          ),
-                          trailing: Icon(
-                            LucideIcons.chevronRight,
-                            size: 18,
-                            color: AppColors.grey400,
-                          ),
+                            if (!isLastSegment)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      LucideIcons.repeat,
+                                      size: 14,
+                                      color: Colors.orange,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Correspondance',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: Colors.orange,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         );
                       },
                     ),

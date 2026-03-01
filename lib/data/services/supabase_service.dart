@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Singleton service to access Supabase client throughout the app
@@ -627,53 +630,64 @@ class SupabaseService {
 
   // ==================== ROUTE PLANNING ====================
 
-  /// Get all stations (with or without coordinates)
+  /// Get all stations with parsed coordinates
   Future<List<Map<String, dynamic>>> getStationsWithCoordinates() async {
     final response = await client
         .from('stations')
         .select()
         .order('nom');
-    return List<Map<String, dynamic>>.from(response);
+    
+    // Parse coordinates for each station
+    final stations = List<Map<String, dynamic>>.from(response);
+    for (final station in stations) {
+      final coords = _parseWkbLocation(station['location']);
+      if (coords != null) {
+        station['latitude'] = coords.$1;
+        station['longitude'] = coords.$2;
+      }
+    }
+    
+    return stations;
   }
 
-  /// Find lignes that pass through both start and end stations
-  /// Returns lignes with their stations in order
+  /// Find lignes that pass through both start and end stations (direct route)
   Future<List<Map<String, dynamic>>> findConnectingLignes(
     String startStationId, 
     String endStationId,
   ) async {
-    // Get all lignes that pass through the start station
-    final startLignes = await client
+    debugPrint('findConnectingLignes: $startStationId -> $endStationId');
+    
+    // Find lignes that contain the start station
+    final startArrets = await client
         .from('arrets_lignes')
         .select('ligne_id')
         .eq('station_id', startStationId);
     
-    final startLigneIds = (startLignes as List)
+    final startLigneIds = (startArrets as List)
         .map((e) => e['ligne_id'] as String)
         .toSet();
     
-    // Get all lignes that pass through the end station
-    final endLignes = await client
+    // Find lignes that contain the end station
+    final endArrets = await client
         .from('arrets_lignes')
         .select('ligne_id')
         .eq('station_id', endStationId);
     
-    final endLigneIds = (endLignes as List)
+    final endLigneIds = (endArrets as List)
         .map((e) => e['ligne_id'] as String)
         .toSet();
     
+    debugPrint('Start in ${startLigneIds.length} lignes, End in ${endLigneIds.length} lignes');
+    
     // Find common lignes
     final commonLigneIds = startLigneIds.intersection(endLigneIds);
+    debugPrint('Common lignes: ${commonLigneIds.length}');
     
-    if (commonLigneIds.isEmpty) {
-      return [];
-    }
+    if (commonLigneIds.isEmpty) return [];
     
-    // Get full ligne details with all stations
     final result = <Map<String, dynamic>>[];
     
     for (final ligneId in commonLigneIds) {
-      // Get ligne info
       final ligneInfo = await client
           .from('lignes')
           .select()
@@ -685,9 +699,21 @@ class SupabaseService {
       // Get all stations for this ligne with coordinates
       final stationsOnLigne = await client
           .from('arrets_lignes')
-          .select('*, stations(*)')
+          .select('ordre_passage, station_id, stations(id, nom, location, accessibilite)')
           .eq('ligne_id', ligneId)
           .order('ordre_passage');
+      
+      // Parse coordinates for each station
+      for (final stop in stationsOnLigne) {
+        final station = stop['stations'] as Map<String, dynamic>?;
+        if (station != null) {
+          final coords = _parseWkbLocation(station['location']);
+          if (coords != null) {
+            station['latitude'] = coords.$1;
+            station['longitude'] = coords.$2;
+          }
+        }
+      }
       
       result.add({
         'ligne': ligneInfo,
@@ -698,7 +724,7 @@ class SupabaseService {
     return result;
   }
 
-  /// Search stations by name (for autocomplete)
+  /// Search stations by name
   Future<List<Map<String, dynamic>>> searchStationsByName(String query) async {
     if (query.isEmpty) return [];
     
@@ -708,5 +734,517 @@ class SupabaseService {
         .ilike('nom', '%$query%')
         .limit(10);
     return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Find routes with transfers (multi-hop routing)
+  /// Uses BFS to find shortest path with minimum transfers
+  Future<Map<String, dynamic>> findRoutesWithTransfers(
+    String startStationId,
+    String endStationId,
+  ) async {
+    debugPrint('=== ROUTE SEARCH ===');
+    debugPrint('From: $startStationId To: $endStationId');
+    
+    // First try direct routes
+    final directRoutes = await findConnectingLignes(startStationId, endStationId);
+    
+    if (directRoutes.isNotEmpty) {
+      debugPrint('Found ${directRoutes.length} direct route(s)');
+      
+      // Filter stations between start and end
+      final route = directRoutes.first;
+      final allStations = route['stations'] as List;
+      final filteredStations = _filterStationsBetween(
+        allStations, 
+        startStationId, 
+        endStationId,
+      );
+      
+      return {
+        'type': 'direct',
+        'segments': [
+          {
+            'ligne': route['ligne'],
+            'stations': filteredStations,
+            'fromStation': startStationId,
+            'toStation': endStationId,
+          }
+        ],
+        'totalTransfers': 0,
+        'allRoutes': directRoutes,
+      };
+    }
+
+    // No direct route - find route with transfers using BFS
+    debugPrint('No direct route, searching with transfers...');
+    
+    final graph = await _buildTransitGraph();
+    debugPrint('Graph built with ${graph.length} stations');
+    
+    // Check if stations are in graph
+    final startInGraph = graph.containsKey(startStationId);
+    final endInGraph = graph.containsKey(endStationId);
+    debugPrint('Start in graph: $startInGraph, End in graph: $endInGraph');
+    
+    if (!startInGraph || !endInGraph) {
+      debugPrint('One or both stations not in transit network');
+      return {
+        'type': 'none',
+        'segments': [],
+        'totalTransfers': 0,
+        'allRoutes': [],
+        'error': 'Stations not connected to transit network',
+      };
+    }
+    
+    // BFS to find shortest path
+    final path = _bfsShortestPath(graph, startStationId, endStationId);
+    
+    if (path == null) {
+      debugPrint('No path found');
+      return {
+        'type': 'none',
+        'segments': [],
+        'totalTransfers': 0,
+        'allRoutes': [],
+      };
+    }
+
+    debugPrint('Path found with ${path.length} steps');
+    
+    // Convert path to segments
+    final segments = await _pathToSegments(path);
+    debugPrint('Created ${segments.length} segment(s)');
+    
+    return {
+      'type': 'transfer',
+      'segments': segments,
+      'totalTransfers': segments.length - 1,
+      'path': path,
+    };
+  }
+  
+  /// Filter stations list to only include those between start and end
+  List<Map<String, dynamic>> _filterStationsBetween(
+    List<dynamic> allStations, 
+    String startId, 
+    String endId,
+  ) {
+    int startIdx = -1;
+    int endIdx = -1;
+    
+    for (int i = 0; i < allStations.length; i++) {
+      final stationId = allStations[i]['station_id'] as String?;
+      if (stationId == startId) startIdx = i;
+      if (stationId == endId) endIdx = i;
+    }
+    
+    if (startIdx == -1 || endIdx == -1) {
+      return List<Map<String, dynamic>>.from(allStations);
+    }
+    
+    // Ensure correct order (handle reverse direction)
+    if (startIdx > endIdx) {
+      final temp = startIdx;
+      startIdx = endIdx;
+      endIdx = temp;
+    }
+    
+    return List<Map<String, dynamic>>.from(
+      allStations.sublist(startIdx, endIdx + 1)
+    );
+  }
+
+  /// Build transit graph from database
+  /// Graph structure: stationId -> {neighborStationId -> [connection info]}
+  Future<Map<String, Map<String, List<Map<String, dynamic>>>>> _buildTransitGraph() async {
+    // Get all ligne-station connections with ligne info
+    final allArrets = await client
+        .from('arrets_lignes')
+        .select('ligne_id, station_id, ordre_passage, stations(id, nom, location), lignes(id, nom_court, direction_terminus, couleur_hex, type)')
+        .order('ligne_id')
+        .order('ordre_passage');
+    
+    debugPrint('Loaded ${allArrets.length} arrets');
+    
+    // Group by ligne
+    final ligneStations = <String, List<Map<String, dynamic>>>{};
+    for (final arret in allArrets) {
+      final ligneId = arret['ligne_id'] as String;
+      ligneStations.putIfAbsent(ligneId, () => []);
+      ligneStations[ligneId]!.add(Map<String, dynamic>.from(arret));
+    }
+    
+    debugPrint('Found ${ligneStations.length} lignes');
+    
+    // Build adjacency graph
+    final graph = <String, Map<String, List<Map<String, dynamic>>>>{};
+    int edgesCreated = 0;
+    
+    for (final entry in ligneStations.entries) {
+      final stops = entry.value;
+      // Sort by ordre_passage
+      stops.sort((a, b) => 
+        (a['ordre_passage'] as int? ?? 0).compareTo(b['ordre_passage'] as int? ?? 0)
+      );
+      
+      // Connect consecutive stations
+      for (int i = 0; i < stops.length - 1; i++) {
+        final currentStationId = stops[i]['station_id'] as String;
+        final nextStationId = stops[i + 1]['station_id'] as String;
+        final ligne = stops[i]['lignes'] as Map<String, dynamic>?;
+        final currentStationInfo = stops[i]['stations'] as Map<String, dynamic>?;
+        final nextStationInfo = stops[i + 1]['stations'] as Map<String, dynamic>?;
+        
+        if (ligne == null) continue;
+        
+        // Parse coordinates for stations
+        if (currentStationInfo != null) {
+          final coords = _parseWkbLocation(currentStationInfo['location']);
+          if (coords != null) {
+            currentStationInfo['latitude'] = coords.$1;
+            currentStationInfo['longitude'] = coords.$2;
+          }
+        }
+        if (nextStationInfo != null) {
+          final coords = _parseWkbLocation(nextStationInfo['location']);
+          if (coords != null) {
+            nextStationInfo['latitude'] = coords.$1;
+            nextStationInfo['longitude'] = coords.$2;
+          }
+        }
+        
+        final connectionInfo = {
+          'ligne': ligne,
+          'station_info': currentStationInfo,
+          'next_station_info': nextStationInfo,
+        };
+        
+        // Add bidirectional edge
+        graph.putIfAbsent(currentStationId, () => {});
+        graph[currentStationId]!.putIfAbsent(nextStationId, () => []);
+        graph[currentStationId]![nextStationId]!.add(connectionInfo);
+        
+        graph.putIfAbsent(nextStationId, () => {});
+        graph[nextStationId]!.putIfAbsent(currentStationId, () => []);
+        graph[nextStationId]![currentStationId]!.add({
+          'ligne': ligne,
+          'station_info': nextStationInfo,
+          'next_station_info': currentStationInfo,
+        });
+        
+        edgesCreated++;
+      }
+    }
+    
+    debugPrint('Created $edgesCreated edges, graph has ${graph.length} stations');
+    return graph;
+  }
+  
+  /// Parse PostGIS WKB hex format to (latitude, longitude)
+  (double, double)? _parseWkbLocation(dynamic location) {
+    if (location == null) return null;
+    
+    if (location is! String) return null;
+    
+    // Check for WKB hex format (starts with 01 for little endian)
+    if (location.length >= 50 && RegExp(r'^[0-9A-Fa-f]+$').hasMatch(location)) {
+      try {
+        // WKB format: byte_order(1) + type(4) + srid(4) + x(8) + y(8) = 25 bytes = 50 hex
+        // 01 01000020 E6100000 XXXXXXXX YYYYYYYY
+        
+        final byteOrder = int.parse(location.substring(0, 2), radix: 16);
+        final isLittleEndian = byteOrder == 1;
+        
+        // Position 18 = after byte order (2) + type (8) + srid (8)
+        const coordsStart = 18;
+        final xHex = location.substring(coordsStart, coordsStart + 16);
+        final yHex = location.substring(coordsStart + 16, coordsStart + 32);
+        
+        final lng = _parseHexToDouble(xHex, isLittleEndian);
+        final lat = _parseHexToDouble(yHex, isLittleEndian);
+        
+        if (lng != null && lat != null && lat.abs() <= 90 && lng.abs() <= 180) {
+          return (lat, lng);
+        }
+      } catch (e) {
+        debugPrint('WKB parse error: $e');
+      }
+    }
+    
+    // Try WKT format: POINT(lng lat)
+    final regex = RegExp(r'POINT\(([^\s]+)\s+([^\)]+)\)');
+    final match = regex.firstMatch(location);
+    if (match != null) {
+      final lng = double.tryParse(match.group(1) ?? '');
+      final lat = double.tryParse(match.group(2) ?? '');
+      if (lat != null && lng != null) {
+        return (lat, lng);
+      }
+    }
+    
+    return null;
+  }
+  
+  /// Parse IEEE 754 double from hex string
+  double? _parseHexToDouble(String hex, bool isLittleEndian) {
+    if (hex.length != 16) return null;
+    
+    try {
+      // Convert hex to bytes
+      final bytes = Uint8List(8);
+      for (int i = 0; i < 8; i++) {
+        bytes[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
+      }
+      
+      // Create ByteData and read as float64
+      final byteData = ByteData.view(bytes.buffer);
+      return byteData.getFloat64(0, isLittleEndian ? Endian.little : Endian.big);
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  /// Calculate distance between two coordinates in meters (Haversine formula)
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371000; // Earth radius in meters
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    final a = 
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRadians(lat1)) * math.cos(_toRadians(lat2)) *
+        math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.asin(math.sqrt(a));
+    return R * c;
+  }
+  
+  double _toRadians(double degree) => degree * 3.141592653589793 / 180;
+  
+  /// Parse PostGIS WKB hex format for Point geometry
+  /// Format: BBTTTTTTTTSSSSSSSSXXXXXXXXXXXXXXXX (B=byte order, T=type, S=srid, X=coords)
+  (double, double)? _parseWkbHex(String hex) {
+    // Minimum length for Point with SRID: 1+4+4+8+8 = 25 bytes = 50 hex chars
+    if (hex.length < 50) return null;
+    
+    // Parse byte order (01 = little endian, 00 = big endian)
+    final byteOrder = int.parse(hex.substring(0, 2), radix: 16);
+    final isLittleEndian = byteOrder == 1;
+    
+    // Skip type (4 bytes) and SRID (4 bytes) = 8 bytes = 16 hex chars
+    // Position: 2 (byte order) + 8 (type) + 8 (srid) = 18
+    final coordsStart = 18;
+    
+    // Extract coordinates (two 8-byte doubles)
+    final xHex = hex.substring(coordsStart, coordsStart + 16);
+    final yHex = hex.substring(coordsStart + 16, coordsStart + 32);
+    
+    // Parse as IEEE 754 double
+    final lng = _parseHexDouble(xHex, isLittleEndian);
+    final lat = _parseHexDouble(yHex, isLittleEndian);
+    
+    if (lng != null && lat != null && lat.abs() <= 90 && lng.abs() <= 180) {
+      return (lat, lng);
+    }
+    
+    return null;
+  }
+  
+  /// Parse hex string to IEEE 754 double
+  double? _parseHexDouble(String hex, bool isLittleEndian) {
+    if (hex.length != 16) return null;
+    
+    try {
+      // Convert hex to bytes
+      final bytes = List<int>.generate(8, (i) => int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16));
+      
+      // Reverse for little endian
+      if (isLittleEndian) {
+        bytes.reversed;
+        // Build 64-bit integer in little endian order
+        int bits = 0;
+        for (int i = 7; i >= 0; i--) {
+          bits = (bits << 8) | bytes[i];
+        }
+        // Convert to double using IEEE 754
+        final data = ByteData(8);
+        data.setInt64(0, bits);
+        return data.getFloat64(0);
+      } else {
+        int bits = 0;
+        for (final byte in bytes) {
+          bits = (bits << 8) | byte;
+        }
+        final data = ByteData(8);
+        data.setInt64(0, bits);
+        return data.getFloat64(0);
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// BFS to find shortest path (minimum transfers)
+  List<Map<String, dynamic>>? _bfsShortestPath(
+    Map<String, Map<String, List<Map<String, dynamic>>>> graph,
+    String startId,
+    String endId,
+  ) {
+    if (!graph.containsKey(startId)) {
+      debugPrint('BFS: Start station not in graph');
+      return null;
+    }
+    
+    if (!graph.containsKey(endId)) {
+      debugPrint('BFS: End station not in graph');
+      return null;
+    }
+    
+    debugPrint('BFS: Start has ${graph[startId]?.length ?? 0} neighbors');
+    debugPrint('BFS: End has ${graph[endId]?.length ?? 0} neighbors');
+    
+    // Queue: (currentStation, currentLigne, path)
+    final queue = <Map<String, dynamic>>[];
+    final visited = <String, Set<String>>{}; // station -> set of lignes used to reach it
+    
+    // Start from all lines at the start station
+    for (final neighbor in graph[startId]?.entries ?? <MapEntry<String, List<Map<String, dynamic>>>>[]) {
+      for (final connection in neighbor.value) {
+        final ligneId = connection['ligne']['id'] as String;
+        queue.add({
+          'station': neighbor.key,
+          'ligne': connection['ligne'],
+          'stationInfo': connection['next_station_info'],
+          'path': [
+            {
+              'from': startId,
+              'to': neighbor.key,
+              'ligne': connection['ligne'],
+              'fromInfo': connection['station_info'],
+              'toInfo': connection['next_station_info'],
+            }
+          ],
+        });
+        visited.putIfAbsent(neighbor.key, () => {});
+        visited[neighbor.key]!.add(ligneId);
+      }
+    }
+    
+    debugPrint('BFS: Initial queue size: ${queue.length}');
+    int iterations = 0;
+    const maxIterations = 100000;
+    const maxPathLength = 20; // Allow longer paths for complex routes
+    
+    while (queue.isNotEmpty && iterations < maxIterations) {
+      iterations++;
+      final current = queue.removeAt(0);
+      final currentStation = current['station'] as String;
+      final currentLigne = current['ligne'] as Map<String, dynamic>;
+      final path = current['path'] as List<Map<String, dynamic>>;
+      
+      // Found destination
+      if (currentStation == endId) {
+        debugPrint('BFS: Found path with ${path.length} steps after $iterations iterations');
+        return path;
+      }
+      
+      // Limit path length to avoid very long routes
+      if (path.length > maxPathLength) continue;
+      
+      // Explore neighbors
+      for (final neighbor in graph[currentStation]?.entries ?? <MapEntry<String, List<Map<String, dynamic>>>>[]) {
+        for (final connection in neighbor.value) {
+          final ligneId = connection['ligne']['id'] as String;
+          final neighborStation = neighbor.key;
+          
+          // Skip if already visited with this ligne
+          if (visited[neighborStation]?.contains(ligneId) == true) continue;
+          
+          visited.putIfAbsent(neighborStation, () => {});
+          visited[neighborStation]!.add(ligneId);
+          
+          final newPath = List<Map<String, dynamic>>.from(path);
+          
+          // Check if this is a transfer (different ligne)
+          if (ligneId != currentLigne['id']) {
+            // Add transfer marker
+            newPath.add({
+              'transfer': true,
+              'at': currentStation,
+              'atInfo': current['stationInfo'],
+              'fromLigne': currentLigne,
+              'toLigne': connection['ligne'],
+            });
+          }
+          
+          newPath.add({
+            'from': currentStation,
+            'to': neighborStation,
+            'ligne': connection['ligne'],
+            'fromInfo': connection['station_info'],
+            'toInfo': connection['next_station_info'],
+          });
+          
+          queue.add({
+            'station': neighborStation,
+            'ligne': connection['ligne'],
+            'stationInfo': connection['next_station_info'],
+            'path': newPath,
+          });
+        }
+      }
+    }
+    
+    debugPrint('BFS: No path found after $iterations iterations. Visited ${visited.length} stations.');
+    return null;
+  }
+
+  /// Convert BFS path to route segments
+  Future<List<Map<String, dynamic>>> _pathToSegments(List<Map<String, dynamic>> path) async {
+    final segments = <Map<String, dynamic>>[];
+    Map<String, dynamic>? currentSegment;
+    
+    for (final step in path) {
+      if (step['transfer'] == true) {
+        // Save current segment and start new one
+        if (currentSegment != null) {
+          segments.add(currentSegment);
+        }
+        currentSegment = null;
+        continue;
+      }
+      
+      final ligne = step['ligne'] as Map<String, dynamic>;
+      
+      if (currentSegment == null || currentSegment['ligne']['id'] != ligne['id']) {
+        // Save previous segment
+        if (currentSegment != null) {
+          segments.add(currentSegment);
+        }
+        // Start new segment
+        currentSegment = {
+          'ligne': ligne,
+          'stations': [
+            {'station_id': step['from'], 'stations': step['fromInfo']},
+            {'station_id': step['to'], 'stations': step['toInfo']},
+          ],
+          'fromStation': step['from'],
+          'toStation': step['to'],
+        };
+      } else {
+        // Continue current segment
+        currentSegment['stations'].add({
+          'station_id': step['to'],
+          'stations': step['toInfo'],
+        });
+        currentSegment['toStation'] = step['to'];
+      }
+    }
+    
+    // Add last segment
+    if (currentSegment != null) {
+      segments.add(currentSegment);
+    }
+    
+    return segments;
   }
 }

@@ -205,8 +205,8 @@ class RoutingProvider extends ChangeNotifier {
       _searchResult = _routingService.findRoutes(
         _origin!,
         _destination!,
-        maxResults: 4,
-        maxTransfers: 2,
+        maxResults: 5,
+        maxTransfers: 3, // Allow more transfers for complex multi-line routes
       );
       
       if (_searchResult!.hasError) {

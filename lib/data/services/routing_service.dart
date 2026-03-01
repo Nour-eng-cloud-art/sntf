@@ -49,6 +49,8 @@ class RoutingService {
     }
 
     // Build edges between consecutive stations on each ligne
+    int edgesAdded = 0;
+    int edgesSkipped = 0;
     for (final entry in _arretsParLigne.entries) {
       final ligneId = entry.key;
       final arrets = entry.value;
@@ -60,24 +62,39 @@ class RoutingService {
         final currentArret = arrets[i];
         final nextArret = arrets[i + 1];
         
-        final fromStation = currentArret.station ?? _stationsById[currentArret.stationId];
-        final toStation = nextArret.station ?? _stationsById[nextArret.stationId];
+        // IMPORTANT: Use stations from _stationsById to ensure consistency with graph nodes
+        final fromStation = _stationsById[currentArret.stationId] ?? currentArret.station;
+        final toStation = _stationsById[nextArret.stationId] ?? nextArret.station;
         
-        if (fromStation == null || toStation == null) continue;
+        if (fromStation == null || toStation == null) {
+          edgesSkipped++;
+          continue;
+        }
+        
+        // Ensure stations exist in graph before adding edges
+        if (!_graph.containsKey(fromStation.id) || !_graph.containsKey(toStation.id)) {
+          edgesSkipped++;
+          continue;
+        }
 
         // Add bidirectional edges
         _addEdge(fromStation, toStation, ligne, currentArret.ordrePassage ?? i);
         _addEdge(toStation, fromStation, ligne, nextArret.ordrePassage ?? i + 1);
+        edgesAdded += 2;
       }
     }
 
     _isInitialized = true;
     debugPrint('Routing graph built: ${_graph.length} nodes, ${_countEdges()} edges');
+    debugPrint('Edges added: $edgesAdded, skipped: $edgesSkipped');
   }
 
   void _addEdge(Station from, Station to, Ligne ligne, int ordre) {
     final node = _graph[from.id];
-    if (node == null) return;
+    if (node == null) {
+      debugPrint('Warning: Cannot add edge - station ${from.id} (${from.nom}) not in graph');
+      return;
+    }
 
     final edge = StationEdge(
       fromStation: from,
@@ -104,15 +121,67 @@ class RoutingService {
     return count;
   }
 
+  /// Check if two stations are in the same connected component
+  /// Returns set of all reachable station IDs from origin
+  Set<String> _getReachableStations(String originId) {
+    final reachable = <String>{originId};
+    final queue = Queue<String>();
+    queue.add(originId);
+    
+    while (queue.isNotEmpty) {
+      final currentId = queue.removeFirst();
+      final node = _graph[currentId];
+      if (node == null) continue;
+      
+      for (final edge in node.edges) {
+        if (!reachable.contains(edge.toStation.id)) {
+          reachable.add(edge.toStation.id);
+          queue.add(edge.toStation.id);
+        }
+      }
+    }
+    
+    return reachable;
+  }
+
+  /// Debug function to check graph connectivity
+  void debugConnectivity(String originId, String destId) {
+    final originNode = _graph[originId];
+    final destNode = _graph[destId];
+    
+    debugPrint('=== Connectivity Debug ===');
+    debugPrint('Origin in graph: ${originNode != null}, edges: ${originNode?.edges.length ?? 0}');
+    debugPrint('Dest in graph: ${destNode != null}, edges: ${destNode?.edges.length ?? 0}');
+    
+    if (originNode != null) {
+      debugPrint('Origin neighbors: ${originNode.edges.map((e) => e.toStation.nom).take(5).join(", ")}');
+    }
+    
+    if (destNode != null) {
+      debugPrint('Dest neighbors: ${destNode.edges.map((e) => e.toStation.nom).take(5).join(", ")}');
+    }
+    
+    final reachableFromOrigin = _getReachableStations(originId);
+    debugPrint('Stations reachable from origin: ${reachableFromOrigin.length}');
+    debugPrint('Destination reachable: ${reachableFromOrigin.contains(destId)}');
+    
+    if (!reachableFromOrigin.contains(destId) && destNode != null) {
+      final reachableFromDest = _getReachableStations(destId);
+      debugPrint('Stations reachable from dest: ${reachableFromDest.length}');
+    }
+  }
+
   /// Find routes between two stations
   /// Returns multiple route options sorted by efficiency
+  /// Supports multi-line combinations with transfers
   RouteSearchResult findRoutes(
     RoutePoint origin,
     RoutePoint destination, {
-    int maxResults = 3,
-    int maxTransfers = 2,
+    int maxResults = 5,
+    int maxTransfers = 3,
   }) {
     if (!_isInitialized) {
+      debugPrint('RoutingService: Not initialized');
       return RouteSearchResult(
         itineraries: [],
         origin: origin,
@@ -124,7 +193,10 @@ class RoutingService {
     final originStation = origin.station ?? _findNearestStation(origin.latitude, origin.longitude);
     final destStation = destination.station ?? _findNearestStation(destination.latitude, destination.longitude);
 
+    debugPrint('RoutingService: Searching route from "${originStation?.nom}" to "${destStation?.nom}"');
+    
     if (originStation == null || destStation == null) {
+      debugPrint('RoutingService: Station(s) not found - origin: ${originStation?.nom}, dest: ${destStation?.nom}');
       return RouteSearchResult(
         itineraries: [],
         origin: origin,
@@ -132,6 +204,24 @@ class RoutingService {
         errorMessage: 'Stations non trouvées',
       );
     }
+    
+    // Check if both stations exist in the graph
+    final hasOriginInGraph = _graph.containsKey(originStation.id);
+    final hasDestInGraph = _graph.containsKey(destStation.id);
+    debugPrint('RoutingService: Origin in graph: $hasOriginInGraph, Dest in graph: $hasDestInGraph');
+    
+    if (!hasOriginInGraph || !hasDestInGraph) {
+      debugPrint('RoutingService: Station(s) not in routing graph');
+      return RouteSearchResult(
+        itineraries: [],
+        origin: origin,
+        destination: destination,
+        errorMessage: 'Station(s) non connectée(s) au réseau',
+      );
+    }
+    
+    // Check connectivity before attempting BFS
+    debugConnectivity(originStation.id, destStation.id);
 
     // Find all possible routes using BFS with transfer tracking
     final routes = _findAllRoutes(
@@ -140,8 +230,20 @@ class RoutingService {
       maxTransfers: maxTransfers,
       maxResults: maxResults * 2, // Get more to filter later
     );
+    
+    debugPrint('RoutingService: Found ${routes.length} possible routes');
 
     if (routes.isEmpty) {
+      // Additional debug info when no routes found
+      final reachable = _getReachableStations(originStation.id);
+      if (!reachable.contains(destStation.id)) {
+        return RouteSearchResult(
+          itineraries: [],
+          origin: origin,
+          destination: destination,
+          errorMessage: 'Les stations ne sont pas connectées sur le réseau',
+        );
+      }
       return RouteSearchResult(
         itineraries: [],
         origin: origin,
@@ -212,21 +314,32 @@ class RoutingService {
   }
 
   /// BFS-based pathfinding that tracks line changes
+  /// Supports multi-line routes with transfers at shared stations
   List<List<StationEdge>> _findAllRoutes(
     Station origin,
     Station destination, {
-    int maxTransfers = 2,
+    int maxTransfers = 3,
     int maxResults = 6,
+    int maxIterations = 50000,
   }) {
     final results = <List<StationEdge>>[];
     
     // Queue: (current station, path so far, current ligne, transfer count)
     final queue = Queue<_PathState>();
-    final visited = <String, int>{}; // station_id -> min transfers to reach
+    
+    // Track visited states as (station_id, ligne_id) -> min transfers
+    // This allows visiting the same station on different lines (for transfers)
+    final visited = <String, int>{};
 
     // Initialize with all edges from origin station
     final originNode = _graph[origin.id];
-    if (originNode == null) return [];
+    if (originNode == null) {
+      debugPrint('BFS: Origin station not found in graph: ${origin.id}');
+      return [];
+    }
+    
+    debugPrint('BFS: Searching from "${origin.nom}" to "${destination.nom}"');
+    debugPrint('BFS: Origin has ${originNode.edges.length} edges');
 
     for (final edge in originNode.edges) {
       queue.add(_PathState(
@@ -236,19 +349,28 @@ class RoutingService {
         transfers: 0,
       ));
     }
+    
+    int iterations = 0;
+    final Set<String> stationsExplored = {};
 
-    while (queue.isNotEmpty && results.length < maxResults) {
+    while (queue.isNotEmpty && results.length < maxResults && iterations < maxIterations) {
+      iterations++;
       final state = queue.removeFirst();
+      stationsExplored.add(state.currentStation.id);
       
       // Check if we reached destination
       if (state.currentStation.id == destination.id) {
+        debugPrint('BFS: Found route with ${state.path.length} edges and ${state.transfers} transfers');
         results.add(state.path);
         continue;
       }
 
-      // Skip if we've visited this station with fewer transfers
-      final visitKey = state.currentStation.id;
-      if (visited.containsKey(visitKey) && visited[visitKey]! < state.transfers) {
+      // Use composite key: station_id + ligne_id
+      // This allows arriving at the same station via different lines
+      final visitKey = '${state.currentStation.id}_${state.currentLigne.id}';
+      
+      // Skip if we've visited this (station, line) combination with fewer or equal transfers
+      if (visited.containsKey(visitKey) && visited[visitKey]! <= state.transfers) {
         continue;
       }
       visited[visitKey] = state.transfers;
@@ -258,8 +380,13 @@ class RoutingService {
       if (currentNode == null) continue;
 
       for (final edge in currentNode.edges) {
-        // Skip if going back to a station already in path
+        // Skip if going back to a station already in path (prevent cycles)
         if (state.path.any((e) => e.fromStation.id == edge.toStation.id)) {
+          continue;
+        }
+        
+        // Also skip if destination station is origin (no going back to start)
+        if (edge.toStation.id == origin.id) {
           continue;
         }
 
@@ -276,6 +403,14 @@ class RoutingService {
           transfers: newTransfers,
         ));
       }
+    }
+    
+    debugPrint('BFS: Completed after $iterations iterations');
+    debugPrint('BFS: Explored ${stationsExplored.length} unique stations');
+    debugPrint('BFS: Found ${results.length} routes');
+    
+    if (results.isEmpty && iterations >= maxIterations) {
+      debugPrint('BFS: Hit max iterations limit!');
     }
 
     return results;
