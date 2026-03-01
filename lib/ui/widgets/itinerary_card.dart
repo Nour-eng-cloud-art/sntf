@@ -269,69 +269,169 @@ class _LigneChip extends StatelessWidget {
   }
 }
 
-class _DetailedSegments extends StatelessWidget {
+class _DetailedSegments extends StatefulWidget {
   final List<RouteSegment> segments;
 
   const _DetailedSegments({required this.segments});
+
+  @override
+  State<_DetailedSegments> createState() => _DetailedSegmentsState();
+}
+
+class _DetailedSegmentsState extends State<_DetailedSegments> {
+  bool _isExpanded = true;
+  final Set<int> _expandedSegments = {};
+  
+  @override
+  void initState() {
+    super.initState();
+    // Start with all segments collapsed
+    _isExpanded = true;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
+    final hasTransfers = widget.segments.length > 1;
+    final headerText = hasTransfers 
+        ? 'Itinéraire avec correspondance'
+        : 'Itinéraire direct';
+    
     return Column(
       children: [
-        for (int i = 0; i < segments.length; i++) ...[
-          _SegmentDetail(
-            segment: segments[i],
-            isFirst: i == 0,
-            isLast: i == segments.length - 1,
-          ),
-          if (i < segments.length - 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      LucideIcons.arrowRightLeft,
-                      size: 14,
-                      color: AppColors.warning,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Correspondance à ${segments[i].arrivalStation.nom}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? AppColors.grey300 : AppColors.grey700,
-                    ),
-                  ),
-                ],
-              ),
+        // Collapsible header
+        InkWell(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? AppColors.darkSurfaceVariant 
+                  : AppColors.lightSurfaceVariant,
+              borderRadius: BorderRadius.circular(12),
             ),
-        ],
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.route,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    headerText,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: _isExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    LucideIcons.chevronDown,
+                    size: 20,
+                    color: isDark ? AppColors.grey400 : AppColors.grey600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        // Expandable content
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: _isExpanded
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    children: _buildSegmentsList(),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
       ],
     );
   }
+  
+  List<Widget> _buildSegmentsList() {
+    final List<Widget> items = [];
+    for (int i = 0; i < widget.segments.length; i++) {
+      items.add(
+        _CollapsibleSegmentDetail(
+          segment: widget.segments[i],
+          isFirst: i == 0,
+          isLast: i == widget.segments.length - 1,
+          isExpanded: _expandedSegments.contains(i),
+          onToggle: () => setState(() {
+            if (_expandedSegments.contains(i)) {
+              _expandedSegments.remove(i);
+            } else {
+              _expandedSegments.add(i);
+            }
+          }),
+        ),
+      );
+      
+      if (i < widget.segments.length - 1) {
+        items.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    LucideIcons.arrowRightLeft,
+                    size: 14,
+                    color: AppColors.warning,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Correspondance',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    return items;
+  }
 }
 
-class _SegmentDetail extends StatelessWidget {
+class _CollapsibleSegmentDetail extends StatelessWidget {
   final RouteSegment segment;
   final bool isFirst;
   final bool isLast;
+  final bool isExpanded;
+  final VoidCallback onToggle;
 
-  const _SegmentDetail({
+  const _CollapsibleSegmentDetail({
     required this.segment,
     this.isFirst = false,
     this.isLast = false,
+    required this.isExpanded,
+    required this.onToggle,
   });
 
   @override
@@ -340,122 +440,228 @@ class _SegmentDetail extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final color = _parseColor(segment.color) ?? AppColors.primary;
     
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Departure
-        Row(
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark 
+              ? AppColors.darkSurface.withValues(alpha: 0.5) 
+              : AppColors.lightSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: color.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Timeline
-            Column(
+            // Header row (always visible)
+            Row(
               children: [
                 Container(
-                  width: 12,
-                  height: 12,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    _getTransportIcon(segment.ligne.type),
+                    size: 18,
                     color: color,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
                   ),
                 ),
-                Container(
-                  width: 2,
-                  height: 40,
-                  color: color,
-                ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    segment.departureStation.nom,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _LigneChip(ligne: segment.ligne),
-                      const SizedBox(width: 8),
-                      Icon(
-                        LucideIcons.arrowRight,
-                        size: 14,
-                        color: isDark ? AppColors.grey400 : AppColors.grey600,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          segment.ligne.directionTerminus,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isDark ? AppColors.grey400 : AppColors.grey600,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              segment.ligne.nomCourt,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${segment.stopCount} arrêts',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? AppColors.grey400 : AppColors.grey600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${segment.departureStation.nom} → ${segment.arrivalStation.nom}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? AppColors.grey300 : AppColors.grey700,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                Icon(
+                  isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                  size: 18,
+                  color: isDark ? AppColors.grey400 : AppColors.grey600,
+                ),
+              ],
+            ),
+            
+            // Expanded details
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: isExpanded
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Direction
+                          Row(
+                            children: [
+                              Icon(
+                                LucideIcons.arrowRight,
+                                size: 14,
+                                color: isDark ? AppColors.grey500 : AppColors.grey500,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Direction ${segment.ligne.directionTerminus}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? AppColors.grey400 : AppColors.grey600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // Duration
+                          Row(
+                            children: [
+                              Icon(
+                                LucideIcons.clock,
+                                size: 14,
+                                color: isDark ? AppColors.grey500 : AppColors.grey500,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Durée: ${segment.estimatedDuration.inMinutes} min',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? AppColors.grey400 : AppColors.grey600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          // Station list
+                          if (segment.stations.length > 2) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isDark 
+                                    ? AppColors.darkSurfaceVariant 
+                                    : AppColors.lightSurfaceVariant,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Arrêts:',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? AppColors.grey400 : AppColors.grey600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  ...segment.stations.map((station) {
+                                    final isOrigin = station == segment.departureStation;
+                                    final isDest = station == segment.arrivalStation;
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              color: isOrigin || isDest ? color : color.withValues(alpha: 0.5),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              station.nom,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: isOrigin || isDest ? FontWeight.w600 : FontWeight.normal,
+                                                color: isDark ? AppColors.grey300 : AppColors.grey700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
         ),
-        
-        // Intermediate stops info
-        Padding(
-          padding: const EdgeInsets.only(left: 5),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 2,
-                height: 32,
-                color: color,
-              ),
-              const SizedBox(width: 17),
-              Text(
-                '${segment.stopCount} arrêt${segment.stopCount > 1 ? 's' : ''} • ${segment.estimatedDuration.inMinutes} min',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDark ? AppColors.grey500 : AppColors.grey500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // Arrival
-        Row(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                segment.arrivalStation.nom,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
+  }
+
+  IconData _getTransportIcon(TransportType type) {
+    switch (type) {
+      case TransportType.bus:
+        return LucideIcons.bus;
+      case TransportType.metro:
+        return LucideIcons.trainFront;
+      case TransportType.rer:
+        return LucideIcons.trainTrack;
+      case TransportType.tramway:
+        return LucideIcons.tramFront;
+      case TransportType.train:
+        return LucideIcons.trainFront;
+    }
   }
 
   Color? _parseColor(String? hex) {

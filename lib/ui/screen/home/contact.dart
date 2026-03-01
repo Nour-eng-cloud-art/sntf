@@ -164,7 +164,7 @@ class _ContactPageState extends State<ContactPage> with SingleTickerProviderStat
                 _buildContactItem(
                   icon: LucideIcons.mail,
                   title: 'Email',
-                  subtitle: 'contact@sntf.dz',
+                  subtitle: 'contact@trandz.dz',
                   theme: theme,
                   isDark: isDark,
                 ),
