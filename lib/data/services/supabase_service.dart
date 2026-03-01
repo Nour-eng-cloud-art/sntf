@@ -1517,4 +1517,62 @@ class SupabaseService {
     
     return segments;
   }
+  
+
+  Future<String?> uploadProfilePhoto({
+    required String userId,
+    required Uint8List imageBytes,
+    required String fileName,
+  }) async {
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = fileName.split('.').last.toLowerCase();
+      final storagePath = '$userId/avatar_$timestamp.$extension';
+      
+      debugPrint('Uploading to storage path: $storagePath');
+      debugPrint('Image bytes length: ${imageBytes.length}');
+
+      await client.storage.from('profile_pictures').uploadBinary(
+        storagePath,
+        imageBytes,
+        fileOptions: FileOptions(
+          contentType: 'image/$extension',
+          upsert: true,
+        ),
+      );
+      
+      // Get the public URL
+      final publicUrl = client.storage.from('profile_pictures').getPublicUrl(storagePath);
+      
+      debugPrint('Upload successful. Public URL: $publicUrl');
+      
+      return publicUrl;
+    } catch (e) {
+      debugPrint('Error uploading profile photo: $e');
+      rethrow; // Re-throw to handle in UI
+    }
+  }
+  
+  /// Delete old profile photo from storage
+  Future<bool> deleteProfilePhoto(String photoUrl) async {
+    try {
+      // Extract path from URL
+      final uri = Uri.parse(photoUrl);
+      final pathSegments = uri.pathSegments;
+      
+      // Find 'profile_pictures' in path and get everything after it
+      final bucketIndex = pathSegments.indexOf('profile_pictures');
+      if (bucketIndex == -1 || bucketIndex >= pathSegments.length - 1) {
+        return false;
+      }
+      
+      final storagePath = pathSegments.sublist(bucketIndex + 1).join('/');
+      
+      await client.storage.from('profile_pictures').remove([storagePath]);
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting profile photo: $e');
+      return false;
+    }
+  }
 }

@@ -160,8 +160,22 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
+    final padding = MediaQuery.of(context).padding;
+    
 
-    // Set status bar style
+    final isSmallScreen = size.width < 360;
+    final isMediumScreen = size.width >= 360 && size.width < 600;
+    final isLargeScreen = size.width >= 600;
+    final isLandscape = size.width > size.height;
+    
+    final horizontalPadding = isLargeScreen ? 48.0 : (isSmallScreen ? 16.0 : 24.0);
+    final maxContentWidth = isLargeScreen ? 450.0 : double.infinity;
+    final logoSize = isSmallScreen ? 80.0 : (isLargeScreen ? 120.0 : 100.0);
+    final topSpacing = isLandscape ? 20.0 : (isSmallScreen ? 24.0 : 40.0);
+    final sectionSpacing = isSmallScreen ? 24.0 : (isLargeScreen ? 48.0 : 40.0);
+    final fieldSpacing = isSmallScreen ? 16.0 : 20.0;
+    final buttonSpacing = isSmallScreen ? 24.0 : 32.0;
+
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -171,176 +185,239 @@ class _LoginState extends State<Login> with TickerProviderStateMixin {
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: size.height - MediaQuery.of(context).padding.top,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: SlideTransition(
-                  position: _slideAnimation,
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 40),
-                        
-                        // Logo
-                        const AnimatedLogo(size: 100),
-                        
-                        const SizedBox(height: 40),
-                        
-                        // Welcome Text
-                        Text(
-                          'Bon retour !',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: size.height - padding.top - padding.bottom,
+                maxWidth: maxContentWidth,
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisAlignment: isLandscape ? MainAxisAlignment.center : MainAxisAlignment.start,
+                        children: [
+                          SizedBox(height: topSpacing),
+                          
+                          // Logo - responsive size
+                          AnimatedLogo(size: logoSize),
+                          
+                          SizedBox(height: sectionSpacing),
+                          
+                          // Welcome Text - responsive font size
+                          Text(
+                            'Bon retour !',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isSmallScreen ? 22 : (isLargeScreen ? 28 : null),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Connectez-vous pour continuer',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Connectez-vous pour continuer',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: isSmallScreen ? 14 : null,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        
-                        const SizedBox(height: 40),
-                        
-                        
-                        AnimatedTextField(
-                          controller: _emailController,
-                          label: 'Email',
-                          hint: 'votre@email.com',
-                          prefixIcon: Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
-                          animationIndex: 1,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez entrer votre email';
-                            }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                .hasMatch(value)) {
-                              return 'Veuillez entrer un email valide';
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Password Field
-                        AnimatedTextField(
-                          controller: _passwordController,
-                          label: 'Mot de passe',
-                          hint: '••••••••',
-                          prefixIcon: Icons.lock_outlined,
-                          isPassword: true,
-                          animationIndex: 2,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez entrer votre mot de passe';
-                            }
-                            if (value.length < 6) {
-                              return 'Le mot de passe doit contenir au moins 6 caractères';
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Remember me & Forgot password
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: Checkbox(
-                                    value: _rememberMe,
-                                    onChanged: (value) {
-                                      setState(() => _rememberMe = value ?? false);
-                                    },
-                                    activeColor: AppColors.primary,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
+                          
+                          SizedBox(height: sectionSpacing),
+                          
+                          // Email Field
+                          AnimatedTextField(
+                            controller: _emailController,
+                            label: 'Email',
+                            hint: 'votre@email.com',
+                            prefixIcon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                            animationIndex: 1,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Veuillez entrer votre email';
+                              }
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                  .hasMatch(value)) {
+                                return 'Veuillez entrer un email valide';
+                              }
+                              return null;
+                            },
+                          ),
+                          
+                          SizedBox(height: fieldSpacing),
+                          
+                          // Password Field
+                          AnimatedTextField(
+                            controller: _passwordController,
+                            label: 'Mot de passe',
+                            hint: '••••••••',
+                            prefixIcon: Icons.lock_outlined,
+                            isPassword: true,
+                            animationIndex: 2,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Veuillez entrer votre mot de passe';
+                              }
+                              if (value.length < 6) {
+                                return 'Le mot de passe doit contenir au moins 6 caractères';
+                              }
+                              return null;
+                            },
+                          ),
+                          
+                          SizedBox(height: isSmallScreen ? 12 : 16),
+                          
+                          // Remember me & Forgot password - responsive layout
+                          isSmallScreen
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          height: 24,
+                                          width: 24,
+                                          child: Checkbox(
+                                            value: _rememberMe,
+                                            onChanged: (value) {
+                                              setState(() => _rememberMe = value ?? false);
+                                            },
+                                            activeColor: AppColors.primary,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Se souvenir de moi',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: _handleForgotPassword,
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(0, 36),
+                                        ),
+                                        child: Text(
+                                          'Mot de passe oublié ?',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Flexible(
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          SizedBox(
+                                            height: 24,
+                                            width: 24,
+                                            child: Checkbox(
+                                              value: _rememberMe,
+                                              onChanged: (value) {
+                                                setState(() => _rememberMe = value ?? false);
+                                              },
+                                              activeColor: AppColors.primary,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              'Se souvenir de moi',
+                                              style: theme.textTheme.bodyMedium,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: _handleForgotPassword,
+                                      child: Text(
+                                        'Mot de passe oublié ?',
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                          
+                          SizedBox(height: buttonSpacing),
+                          
+                          // Login Button
+                          AnimatedButton(
+                            text: 'Se connecter',
+                            onPressed: _handleLogin,
+                            isLoading: _isLoading,
+                            icon: Icons.login_rounded,
+                          ),
+                          
+                          SizedBox(height: buttonSpacing),
+                          
+                          // Sign up link - responsive text
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            children: [
+                              Text(
+                                "Vous n'avez pas de compte ? ",
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontSize: isSmallScreen ? 13 : null,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pushNamed(context, '/signin');
+                                },
+                                child: Text(
+                                  "S'inscrire",
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: isSmallScreen ? 13 : null,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Se souvenir de moi',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                _handleForgotPassword();
-                              },
-                              child: Text(
-                                'Mot de passe oublié ?',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        
-                        // Login Button
-                        AnimatedButton(
-                          text: 'Se connecter',
-                          onPressed: _handleLogin,
-                          isLoading: _isLoading,
-                          icon: Icons.login_rounded,
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        
-                        // Sign up link
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Vous n'avez pas de compte ? ",
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.pushNamed(context, '/signin');
-                              },
-                              child: Text(
-                                "S'inscrire",
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Track decoration
-                        const TrackDecoration(),
-                        
-                        const SizedBox(height: 20),
-                      ],
+                            ],
+                          ),
+                          
+                          SizedBox(height: isSmallScreen ? 16 : 24),
+                          
+                          // Track decoration
+                          const TrackDecoration(),
+                          
+                          SizedBox(height: isSmallScreen ? 12 : 20),
+                        ],
+                      ),
                     ),
                   ),
                 ),

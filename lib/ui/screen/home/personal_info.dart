@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/providers/auth_provider.dart';
+import 'package:sntf/data/services/supabase_service.dart';
 
 class PersonalInfoPage extends StatefulWidget {
   const PersonalInfoPage({super.key});
@@ -24,6 +28,11 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
   bool _isEditing = false;
   bool _isSaving = false;
   bool _hasChanges = false;
+  
+  // Photo upload state
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageName;
+  bool _isUploadingPhoto = false;
 
   @override
   void initState() {
@@ -97,17 +106,26 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
 
     setState(() => _isSaving = true);
 
+    // Upload photo if selected
+    String? photoUrl;
+    if (_selectedImageBytes != null) {
+      photoUrl = await _uploadPhoto();
+    }
+
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.updateProfile(
       nom: _nomController.text.trim(),
       prenom: _prenomController.text.trim(),
       dateNaissance: _dateNaissance,
+      photoUrl: photoUrl,
     );
 
     setState(() {
       _isSaving = false;
       _isEditing = false;
       _hasChanges = false;
+      _selectedImageBytes = null;
+      _selectedImageName = null;
     });
 
     if (mounted) {
@@ -145,7 +163,177 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
       _dateNaissance = user?.dateNaissance;
       _isEditing = false;
       _hasChanges = false;
+      _selectedImageBytes = null;
+      _selectedImageName = null;
     });
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    final theme = Theme.of(context);
+    
+    // Show bottom sheet to choose source
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.grey300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Choisir une photo',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(LucideIcons.camera, color: AppColors.primary),
+                ),
+                title: const Text('Prendre une photo'),
+                subtitle: const Text('Utiliser l\'appareil photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(LucideIcons.image, color: AppColors.primary),
+                ),
+                title: const Text('Choisir de la galerie'),
+                subtitle: const Text('Sélectionner une image existante'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    
+    if (source == null) return;
+    
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile == null) return;
+      
+      final bytes = await pickedFile.readAsBytes();
+      
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImageName = pickedFile.name;
+        _hasChanges = true;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(LucideIcons.triangleAlert, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Text('Erreur lors de la sélection: $e'),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String?> _uploadPhoto() async {
+    if (_selectedImageBytes == null || _selectedImageName == null) {
+      debugPrint('Upload photo: No image selected');
+      return null;
+    }
+    
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.user?.id;
+    
+    if (userId == null) {
+      debugPrint('Upload photo: User ID is null');
+      return null;
+    }
+    
+    setState(() => _isUploadingPhoto = true);
+    
+    try {
+      debugPrint('Uploading photo for user: $userId');
+      debugPrint('Image size: ${_selectedImageBytes!.length} bytes');
+      debugPrint('File name: $_selectedImageName');
+      
+      final photoUrl = await SupabaseService().uploadProfilePhoto(
+        userId: userId,
+        imageBytes: _selectedImageBytes!,
+        fileName: _selectedImageName!,
+      );
+      
+      debugPrint('Upload result - Photo URL: $photoUrl');
+      
+      if (photoUrl == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Erreur lors du téléchargement de la photo. Vérifiez que le bucket "avatars" existe dans Supabase.'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+      }
+      
+      return photoUrl;
+    } catch (e) {
+      debugPrint('Upload photo error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      return null;
+    } finally {
+      setState(() => _isUploadingPhoto = false);
+    }
   }
 
   String _getInitials(String fullName) {
@@ -268,11 +456,13 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
                                 width: 120,
                                 height: 120,
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [AppColors.primary, AppColors.primaryDark],
-                                  ),
+                                  gradient: _selectedImageBytes == null && user?.photoUrl == null
+                                      ? LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [AppColors.primary, AppColors.primaryDark],
+                                        )
+                                      : null,
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
@@ -282,14 +472,63 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
                                     ),
                                   ],
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    initials,
-                                    style: theme.textTheme.headlineLarge?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                child: ClipOval(
+                                  child: _selectedImageBytes != null
+                                      ? Image.memory(
+                                          _selectedImageBytes!,
+                                          width: 120,
+                                          height: 120,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : user?.photoUrl != null
+                                          ? Image.network(
+                                              user!.photoUrl!,
+                                              width: 120,
+                                              height: 120,
+                                              fit: BoxFit.cover,
+                                              loadingBuilder: (context, child, loadingProgress) {
+                                                if (loadingProgress == null) return child;
+                                                return Center(
+                                                  child: CircularProgressIndicator(
+                                                    value: loadingProgress.expectedTotalBytes != null
+                                                        ? loadingProgress.cumulativeBytesLoaded /
+                                                            loadingProgress.expectedTotalBytes!
+                                                        : null,
+                                                    strokeWidth: 2,
+                                                    color: Colors.white,
+                                                  ),
+                                                );
+                                              },
+                                              errorBuilder: (context, error, stackTrace) => Center(
+                                                child: Text(
+                                                  initials,
+                                                  style: theme.textTheme.headlineLarge?.copyWith(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
+                                              width: 120,
+                                              height: 120,
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                  colors: [AppColors.primary, AppColors.primaryDark],
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  initials,
+                                                  style: theme.textTheme.headlineLarge?.copyWith(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                 ),
                               ),
                               if (_isEditing)
@@ -297,9 +536,7 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
                                   bottom: 0,
                                   right: 0,
                                   child: GestureDetector(
-                                    onTap: () {
-                                      // TODO: Implement photo picker
-                                    },
+                                    onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
                                     child: Container(
                                       padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
@@ -310,11 +547,20 @@ class _PersonalInfoPageState extends State<PersonalInfoPage>
                                           width: 3,
                                         ),
                                       ),
-                                      child: const Icon(
-                                        LucideIcons.camera,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
+                                      child: _isUploadingPhoto
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              LucideIcons.camera,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
                                     ),
                                   ),
                                 ),
