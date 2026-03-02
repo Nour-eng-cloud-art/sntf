@@ -95,12 +95,12 @@ class _LegalTextPageState extends State<LegalTextPage> with SingleTickerProvider
                     ),
                   ),
                   child: Text(
-                    "Article 1: Objet\nLes présentes conditions régissent l'utilisation des services SNTF.\n\n"
+                    "Article 1: Objet\nLes présentes conditions régissent l'utilisation des services TransDZ.\n\n"
                     "Article 2: Acceptation\nL'utilisation de l'application implique l'acceptation des présentes conditions.\n\n"
-                    "Article 3: Services\nLa SNTF met à disposition une application permettant la consultation des horaires, la réservation de billets et le suivi des voyages.\n\n"
+                    "Article 3: Services\nTransDZ met à disposition une application permettant la consultation des horaires, la réservation de billets et le suivi des voyages.\n\n"
                     "Article 4: Responsabilités\nL'utilisateur s'engage à utiliser l'application de manière conforme aux lois en vigueur.\n\n"
                     "Article 5: Données personnelles\nLes données collectées sont traitées conformément à la politique de confidentialité.\n\n"
-                    "Article 6: Modifications\nLa SNTF se réserve le droit de modifier ces conditions à tout moment.",
+                    "Article 6: Modifications\nTransDZ se réserve le droit de modifier ces conditions à tout moment.",
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface,
                       height: 1.6,

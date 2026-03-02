@@ -95,7 +95,7 @@ class _ReductionCardState extends State<ReductionCard> with SingleTickerProvider
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _labelBadge("SNTF PASS"),
+              _labelBadge("TransDZ PASS"),
               const Icon(Icons.contactless, color: Colors.white70, size: 28),
             ],
           ),
@@ -145,7 +145,7 @@ class _ReductionCardState extends State<ReductionCard> with SingleTickerProvider
           Align(
             alignment: Alignment.bottomRight,
             child: Text(
-              "SNTF MOBILE SERVICES",
+              "TransDZ MOBILE SERVICES",
               style: TextStyle(color: Colors.white.withAlpha(50), fontSize: 10, letterSpacing: 1),
             ),
           )

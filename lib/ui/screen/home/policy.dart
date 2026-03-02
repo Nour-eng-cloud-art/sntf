@@ -87,7 +87,7 @@ class _PolicyPageState extends State<PolicyPage> with SingleTickerProviderStateM
                   theme: theme,
                   isDark: isDark,
                   title: 'Article 1 - Objet',
-                  content: 'Les présentes conditions générales d\'utilisation ont pour objet de définir les modalités d\'utilisation de l\'application mobile SNTF, mise à disposition par la Société Nationale des Transports Ferroviaires.',
+                  content: 'Les présentes conditions générales d\'utilisation ont pour objet de définir les modalités d\'utilisation de l\'application mobile TransDZ, mise à disposition par TransDZ.',
                 ),
                 
                 _buildSection(
@@ -115,28 +115,28 @@ class _PolicyPageState extends State<PolicyPage> with SingleTickerProviderStateM
                   theme: theme,
                   isDark: isDark,
                   title: 'Article 5 - Annulation et remboursement',
-                  content: 'Les conditions d\'annulation et de remboursement sont conformes à la réglementation en vigueur de la SNTF. Toute demande doit être effectuée au moins 2 heures avant le départ prévu.',
+                  content: 'Les conditions d\'annulation et de remboursement sont conformes à la réglementation en vigueur de TransDZ. Toute demande doit être effectuée au moins 2 heures avant le départ prévu.',
                 ),
                 
                 _buildSection(
                   theme: theme,
                   isDark: isDark,
                   title: 'Article 6 - Protection des données',
-                  content: 'La SNTF s\'engage à protéger les données personnelles des utilisateurs conformément à la législation algérienne en vigueur. Les données collectées sont utilisées uniquement dans le cadre des services proposés.',
+                  content: 'TransDZ s\'engage à protéger les données personnelles des utilisateurs conformément à la législation algérienne en vigueur. Les données collectées sont utilisées uniquement dans le cadre des services proposés.',
                 ),
                 
                 _buildSection(
                   theme: theme,
                   isDark: isDark,
                   title: 'Article 7 - Responsabilité',
-                  content: 'La SNTF ne saurait être tenue responsable des interruptions de service, des erreurs techniques ou de toute perte de données. L\'utilisateur est responsable de la confidentialité de ses identifiants de connexion.',
+                  content: 'TransDZ ne saurait être tenue responsable des interruptions de service, des erreurs techniques ou de toute perte de données. L\'utilisateur est responsable de la confidentialité de ses identifiants de connexion.',
                 ),
                 
                 _buildSection(
                   theme: theme,
                   isDark: isDark,
                   title: 'Article 8 - Modification des conditions',
-                  content: 'La SNTF se réserve le droit de modifier les présentes conditions à tout moment. Les utilisateurs seront informés de toute modification par notification dans l\'application.',
+                  content: 'TransDZ se réserve le droit de modifier les présentes conditions à tout moment. Les utilisateurs seront informés de toute modification par notification dans l\'application.',
                 ),
                 
                 const SizedBox(height: 24),
@@ -157,7 +157,7 @@ class _PolicyPageState extends State<PolicyPage> with SingleTickerProviderStateM
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Pour toute question, contactez-nous à contact@sntf.dz',
+                          'Pour toute question, contactez-nous à contact@transdz.dz',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

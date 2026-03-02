@@ -20,7 +20,7 @@ class _FAQPageState extends State<FAQPage> with SingleTickerProviderStateMixin {
     },
     {
       'question': 'Quels sont les tarifs pour les étudiants ?',
-      'answer': 'La SNTF propose une réduction de 50% sur présentation de la carte d\'étudiant valide.',
+      'answer': 'TransDZ propose une réduction de 50% sur présentation de la carte d\'étudiant valide.',
     },
     {
       'question': 'Puis-je annuler mon voyage ?',
@@ -28,11 +28,11 @@ class _FAQPageState extends State<FAQPage> with SingleTickerProviderStateMixin {
     },
     {
       'question': 'Comment obtenir une carte de réduction ?',
-      'answer': 'Rendez-vous dans n\'importe quelle gare SNTF avec vos documents justificatifs pour obtenir votre carte.',
+      'answer': 'Rendez-vous dans n\'importe quelle gare TransDZ avec vos documents justificatifs pour obtenir votre carte.',
     },
     {
       'question': 'Comment contacter le service client ?',
-      'answer': 'Vous pouvez nous contacter via l\'application, par téléphone au +213 21 71 15 10 ou par email à contact@sntf.dz.',
+      'answer': 'Vous pouvez nous contacter via l\'application, par téléphone au +213 21 71 15 10 ou par email à contact@transdz.dz.',
     },
   ];
 

@@ -465,7 +465,7 @@ class _TicketCard extends StatelessWidget {
     
     // Create QR data with all verification info
     final qrData = jsonEncode({
-      'type': 'SNTF_TICKET',
+      'type': 'TRANSDZ_TICKET',
       'reservation_id': reservation.id,
       'numero_reservation': reservation.numeroReservation,
       'user_id': reservation.userId,
@@ -527,7 +527,7 @@ class _TicketCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Présentez ce QR code à l\'agent SNTF',
+                  'Présentez ce QR code à l\'agent TransDZ',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
