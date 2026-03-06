@@ -138,6 +138,7 @@ class _AnimatedLogoState extends State<AnimatedLogo>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return AnimatedBuilder(
       animation: Listenable.merge([_scaleAnimation, _rotateAnimation]),
@@ -157,24 +158,25 @@ class _AnimatedLogoState extends State<AnimatedLogo>
             width: widget.size,
             height: widget.size,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(widget.size * 0.2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.4),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(widget.size * 0.2),
-              child: Image.asset(
-                'images/TransDZ_with_background_white-removebg-preview.png',
-                width: widget.size,
-                height: widget.size,
-                fit: BoxFit.contain,
+              gradient: RadialGradient(
+                colors: isDark
+                    ? [
+                        AppColors.primary.withValues(alpha: 0.15),
+                        Colors.transparent,
+                      ]
+                    : [
+                        AppColors.primary.withValues(alpha: 0.1),
+                        Colors.transparent,
+                      ],
+                radius: 0.8,
               ),
+            ),
+            child: Image.asset(
+              'images/TransDZ_with_background_white-removebg-preview.png',
+              width: widget.size,
+              height: widget.size,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
           ),
           if (widget.showText) ...[
