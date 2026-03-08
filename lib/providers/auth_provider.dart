@@ -513,6 +513,56 @@ class AuthProvider extends ChangeNotifier {
     }
   }
   
+  // ==================== E-WALLET OPERATIONS ====================
+  
+  /// Get current wallet balance
+  int get walletBalance => _user?.ewalletMontant ?? 0;
+  
+  /// Add money to wallet
+  Future<bool> addMoneyToWallet(int amount) async {
+    if (_user == null) return false;
+    
+    try {
+      final newBalance = await _supabase.addMoneyToWallet(_user!.id, amount);
+      _user = _user!.copyWith(ewalletMontant: newBalance);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error adding money to wallet: $e');
+      return false;
+    }
+  }
+  
+  /// Deduct money from wallet (for purchases)
+  Future<bool> deductFromWallet(int amount, String description) async {
+    if (_user == null) return false;
+    
+    if (_user!.ewalletMontant < amount) {
+      return false; // Insufficient balance
+    }
+    
+    try {
+      final newBalance = await _supabase.deductFromWallet(_user!.id, amount, description);
+      _user = _user!.copyWith(ewalletMontant: newBalance);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deducting from wallet: $e');
+      return false;
+    }
+  }
+  
+  /// Check if user has sufficient balance
+  bool hasSufficientBalance(int amount) {
+    return (_user?.ewalletMontant ?? 0) >= amount;
+  }
+  
+  /// Get wallet transaction history
+  Future<List<Map<String, dynamic>>> getWalletTransactions() async {
+    if (_user == null) return [];
+    return await _supabase.getWalletTransactions(_user!.id);
+  }
+  
   /// Refresh user profile from database
   Future<void> refreshProfile() async {
     if (_user != null) {

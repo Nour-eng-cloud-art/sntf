@@ -5,6 +5,7 @@ import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/main.dart';
 import 'package:sntf/providers/auth_provider.dart';
 import 'package:sntf/ui/screen/home/card_reduction.dart';
+import 'package:sntf/ui/screen/home/ewallet.dart';
 import 'package:sntf/ui/screen/home/payments.dart';
 import 'package:sntf/ui/screen/home/penaties.dart';
 import 'package:sntf/ui/screen/home/personal_info.dart';
@@ -122,7 +123,6 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
             ),
             const SizedBox(height: 24),
-            // Menu Sections
             _MenuSection(
               title: 'Compte',
               items: [
@@ -158,6 +158,18 @@ class _ProfileTabState extends State<ProfileTab> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const PaymentPage(),
+                      ),
+                    );
+                  },
+                ),
+                _MenuItem(
+                  icon: LucideIcons.wallet,
+                  label: 'Portefeuille (${authProvider.walletBalance} DZD)',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const Ewallet(),
                       ),
                     );
                   },

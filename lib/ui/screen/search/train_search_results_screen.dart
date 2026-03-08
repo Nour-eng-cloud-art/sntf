@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/models/national_train.dart';
 import 'package:sntf/data/services/national_train_service.dart';
+import 'package:sntf/providers/auth_provider.dart';
 
 class TrainSearchResultsScreen extends StatefulWidget {
   final String departure;
@@ -301,6 +303,7 @@ class _TrainSearchResultsScreenState extends State<TrainSearchResultsScreen> {
     final theme = Theme.of(context);
     final totalPrice = (train.prixBase * widget.passengers).round();
     bool isBooking = false;
+    int selectedPaymentMethod = 0; // 0 = wallet, 1 = card
     
     showModalBottomSheet(
       context: context,
@@ -309,7 +312,12 @@ class _TrainSearchResultsScreenState extends State<TrainSearchResultsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
+        builder: (context, setModalState) {
+          final authProvider = context.watch<AuthProvider>();
+          final walletBalance = authProvider.walletBalance;
+          final hasSufficientBalance = walletBalance >= totalPrice;
+          
+          return Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -341,6 +349,143 @@ class _TrainSearchResultsScreenState extends State<TrainSearchResultsScreen> {
               _BookingDetailRow(label: 'Durée', value: train.dureeFormatted),
               _BookingDetailRow(label: 'Voyageurs', value: '${widget.passengers}'),
               const Divider(height: 32),
+              
+              // Payment Method Selection
+              Text(
+                'Moyen de paiement',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Wallet Option
+              GestureDetector(
+                onTap: () => setModalState(() => selectedPaymentMethod = 0),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: selectedPaymentMethod == 0 
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selectedPaymentMethod == 0 
+                          ? AppColors.primary 
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.wallet,
+                        color: selectedPaymentMethod == 0 
+                            ? AppColors.primary 
+                            : AppColors.grey600,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Portefeuille SNTF',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: selectedPaymentMethod == 0 
+                                    ? AppColors.primary 
+                                    : null,
+                              ),
+                            ),
+                            Text(
+                              'Solde: $walletBalance DA',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: hasSufficientBalance 
+                                    ? AppColors.success 
+                                    : AppColors.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!hasSufficientBalance)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Solde insuffisant',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      Radio(
+                        value: 0,
+                        groupValue: selectedPaymentMethod,
+                        activeColor: AppColors.primary,
+                        onChanged: (v) => setModalState(() => selectedPaymentMethod = v!),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Card Option
+              GestureDetector(
+                onTap: () => setModalState(() => selectedPaymentMethod = 1),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: selectedPaymentMethod == 1 
+                        ? AppColors.warning.withValues(alpha: 0.1)
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selectedPaymentMethod == 1 
+                          ? AppColors.warning 
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        LucideIcons.creditCard,
+                        color: selectedPaymentMethod == 1 
+                            ? AppColors.warning 
+                            : AppColors.grey600,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Carte bancaire',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: selectedPaymentMethod == 1 
+                              ? AppColors.warning 
+                              : null,
+                        ),
+                      ),
+                      const Spacer(),
+                      Radio(
+                        value: 1,
+                        groupValue: selectedPaymentMethod,
+                        activeColor: AppColors.warning,
+                        onChanged: (v) => setModalState(() => selectedPaymentMethod = v!),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -363,10 +508,23 @@ class _TrainSearchResultsScreenState extends State<TrainSearchResultsScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: isBooking ? null : () async {
+                  onPressed: (isBooking || (selectedPaymentMethod == 0 && !hasSufficientBalance)) 
+                      ? null 
+                      : () async {
                     setModalState(() => isBooking = true);
                     
                     try {
+                      // Deduct from wallet if using wallet payment
+                      if (selectedPaymentMethod == 0) {
+                        final success = await authProvider.deductFromWallet(
+                          totalPrice,
+                          'Billet: ${widget.departure} → ${widget.arrival}',
+                        );
+                        if (!success) {
+                          throw Exception('Échec du paiement');
+                        }
+                      }
+                      
                       await _trainService.createReservation(
                         horaireId: train.horaireId,
                         dateVoyage: widget.date,
@@ -427,8 +585,8 @@ class _TrainSearchResultsScreenState extends State<TrainSearchResultsScreen> {
               const SizedBox(height: 16),
             ],
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 }

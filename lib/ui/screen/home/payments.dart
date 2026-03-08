@@ -308,6 +308,15 @@ class _PaymentPageState extends State<PaymentPage>
                             const SizedBox(height: 15),
                             _paymentMethodItem(
                               index: 0,
+                              title: "Portefeuille SNTF",
+                              subtitle: "Solde: ${context.watch<AuthProvider>().walletBalance} DZD",
+                              icon: Icons.wallet,
+                              color: AppColors.primary,
+                              isDark: isDark,
+                              theme: theme,
+                            ),
+                            _paymentMethodItem(
+                              index: 1,
                               title: "Carte Edahabia",
                               subtitle: "Algérie Poste",
                               icon: Icons.credit_card,
@@ -316,7 +325,7 @@ class _PaymentPageState extends State<PaymentPage>
                               theme: theme,
                             ),
                             _paymentMethodItem(
-                              index: 1,
+                              index: 2,
                               title: "Carte CIB",
                               subtitle: "Services Interbancaires",
                               icon: Icons.payments_outlined,
@@ -662,13 +671,68 @@ class _PaymentPageState extends State<PaymentPage>
       return;
     }
 
+    final currentService = _services[_currentCardIndex];
+    final price = (currentService['price'] as num?)?.toInt() ?? 0;
+
+    // Handle wallet payment (index 0)
+    if (_selectedMethod == 0) {
+      if (!authProvider.hasSufficientBalance(price)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(LucideIcons.messageCircleWarning, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Solde insuffisant. Votre solde: ${authProvider.walletBalance} DZD',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Recharger',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.pop(context);
+                // Navigate to wallet
+              },
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isProcessing = true);
 
     try {
-      final currentService = _services[_currentCardIndex];
       final serviceType = currentService['type'] as String?;
+      final serviceName = currentService['name'] as String? ?? 'Abonnement';
       final now = DateTime.now();
       final endDate = _getEndDateForType(serviceType, now);
+
+      // Deduct from wallet if wallet payment selected
+      if (_selectedMethod == 0) {
+        final success = await authProvider.deductFromWallet(
+          price,
+          'Achat: $serviceName',
+        );
+        if (!success) {
+          setState(() => _isProcessing = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Erreur lors du paiement'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+          return;
+        }
+      }
 
       final abonnement = {
         'user_id': authProvider.userId,

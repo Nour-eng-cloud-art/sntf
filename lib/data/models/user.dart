@@ -23,6 +23,7 @@ class AppUser {
   final DateTime? dateNaissance;
   final String? photoUrl;
   final DateTime createdAt;
+  final int ewalletMontant;
 
   AppUser({
     required this.id,
@@ -33,6 +34,7 @@ class AppUser {
     this.dateNaissance,
     this.photoUrl,
     DateTime? createdAt,
+    this.ewalletMontant = 0,
   }) : createdAt = createdAt ?? DateTime.now();
 
   String get fullName => '${prenom ?? ''} ${nom ?? ''}'.trim();
@@ -53,6 +55,7 @@ class AppUser {
       createdAt: json['created_at'] != null 
           ? DateTime.parse(json['created_at']) 
           : DateTime.now(),
+      ewalletMontant: json['ewallet_montant'] ?? 0,
     );
   }
   
@@ -74,6 +77,7 @@ class AppUser {
       'role': role.name,
       'date_naissance': dateNaissance?.toIso8601String().split('T')[0],
       'photo_url': photoUrl,
+      'ewallet_montant': ewalletMontant,
     };
   }
   
@@ -86,6 +90,7 @@ class AppUser {
     DateTime? dateNaissance,
     String? photoUrl,
     DateTime? createdAt,
+    int? ewalletMontant,
   }) {
     return AppUser(
       id: id ?? this.id,
@@ -96,6 +101,7 @@ class AppUser {
       dateNaissance: dateNaissance ?? this.dateNaissance,
       photoUrl: photoUrl ?? this.photoUrl,
       createdAt: createdAt ?? this.createdAt,
+      ewalletMontant: ewalletMontant ?? this.ewalletMontant,
     );
   }
 }

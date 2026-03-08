@@ -138,6 +138,106 @@ class SupabaseService {
     return response;
   }
   
+  // ==================== E-WALLET ====================
+  
+  /// Get user's e-wallet balance
+  Future<int> getWalletBalance(String userId) async {
+    final response = await client
+        .from('profiles')
+        .select('ewallet_montant')
+        .eq('id', userId)
+        .single();
+    return response['ewallet_montant'] ?? 0;
+  }
+  
+  /// Add money to e-wallet
+  Future<int> addMoneyToWallet(String userId, int amount) async {
+    // Get current balance
+    final current = await getWalletBalance(userId);
+    final newBalance = current + amount;
+    
+    // Update balance
+    await client
+        .from('profiles')
+        .update({'ewallet_montant': newBalance})
+        .eq('id', userId);
+    
+    // Log the transaction
+    await _logWalletTransaction(
+      userId: userId,
+      amount: amount,
+      type: 'credit',
+      description: 'Rechargement du portefeuille',
+    );
+    
+    return newBalance;
+  }
+  
+  /// Deduct money from e-wallet
+  Future<int> deductFromWallet(String userId, int amount, String description) async {
+    // Get current balance
+    final current = await getWalletBalance(userId);
+    
+    if (current < amount) {
+      throw Exception('Solde insuffisant');
+    }
+    
+    final newBalance = current - amount;
+    
+    // Update balance
+    await client
+        .from('profiles')
+        .update({'ewallet_montant': newBalance})
+        .eq('id', userId);
+    
+    // Log the transaction
+    await _logWalletTransaction(
+      userId: userId,
+      amount: -amount,
+      type: 'debit',
+      description: description,
+    );
+    
+    return newBalance;
+  }
+  
+  /// Log wallet transaction
+  Future<void> _logWalletTransaction({
+    required String userId,
+    required int amount,
+    required String type,
+    required String description,
+  }) async {
+    try {
+      await client.from('wallet_transactions').insert({
+        'user_id': userId,
+        'amount': amount,
+        'type': type,
+        'description': description,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      // Transaction logging is optional, don't fail the main operation
+      debugPrint('Failed to log wallet transaction: $e');
+    }
+  }
+  
+  /// Get wallet transaction history
+  Future<List<Map<String, dynamic>>> getWalletTransactions(String userId, {int limit = 20}) async {
+    try {
+      final response = await client
+          .from('wallet_transactions')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(limit);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      // Return empty list if table doesn't exist
+      return [];
+    }
+  }
+  
   // ==================== CHAUFFEURS ====================
   
   /// Get chauffeur by ID
