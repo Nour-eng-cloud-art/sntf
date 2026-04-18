@@ -3,7 +3,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'dart:math';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/models/routing.dart';
 import 'package:sntf/data/models/transport.dart';
@@ -163,16 +162,9 @@ class _RouteMapViewState extends State<RouteMapView> {
               polylines: _buildPolylines(),
             ),
             
-            // Tappable polyline overlay (invisible, for tap detection)
-            _TappablePolylineLayer(
-              segments: widget.itinerary.segments,
-              mapController: _mapController,
-              onSegmentTap: _showSegmentStations,
-            ),
-            
-            // Station markers
+            // Station markers with tap detection for segments
             MarkerLayer(
-              markers: _buildMarkers(),
+              markers: _buildMarkers() + _buildSegmentTapMarkers(),
             ),
           ],
         ),
@@ -388,6 +380,40 @@ class _RouteMapViewState extends State<RouteMapView> {
     }
   }
 
+  List<Marker> _buildSegmentTapMarkers() {
+    final markers = <Marker>[];
+    
+    // Create invisible markers on segment midpoints for tap detection
+    for (int segIdx = 0; segIdx < widget.itinerary.segments.length; segIdx++) {
+      final segment = widget.itinerary.segments[segIdx];
+      final stations = segment.stations;
+      
+      if (stations.length < 2) continue;
+      
+      // Calculate midpoint of segment
+      final midIdx = stations.length ~/ 2;
+      final midStation = stations[midIdx];
+      final midPoint = LatLng(midStation.latitude, midStation.longitude);
+      
+      markers.add(
+        Marker(
+          point: midPoint,
+          width: 40,
+          height: 40,
+          child: GestureDetector(
+            onTap: () => _showSegmentStations(segIdx),
+            child: Container(
+              color: Colors.transparent,
+            ),
+          ),
+        ),
+      );
+    }
+    
+    return markers;
+  }
+
+
   void _showSegmentStations(int segmentIndex) {
     final segment = widget.itinerary.segments[segmentIndex];
     final theme = Theme.of(context);
@@ -532,7 +558,7 @@ class _RouteMapViewState extends State<RouteMapView> {
                                       child: Row(
                                         children: [
                                           Icon(
-                                            LucideIcons.wheelchair,
+                                            LucideIcons.accessibility,
                                             size: 14,
                                             color: AppColors.success,
                                           ),
@@ -624,136 +650,6 @@ class _StationMarker extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Custom layer for tappable polylines
-class _TappablePolylineLayer extends StatelessWidget {
-  final List<RouteSegment> segments;
-  final MapController mapController;
-  final Function(int segmentIndex) onSegmentTap;
-
-  const _TappablePolylineLayer({
-    required this.segments,
-    required this.mapController,
-    required this.onSegmentTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapUp: (details) {
-        _handleTap(context, details.localPosition);
-      },
-      child: Container(
-        color: Colors.transparent,
-        child: CustomPaint(
-          painter: _TappablePolylinePainter(
-            segments: segments,
-            mapController: mapController,
-          ),
-          size: Size.infinite,
-        ),
-      ),
-    );
-  }
-
-  void _handleTap(BuildContext context, Offset tapPosition) {
-    final mapState = FlutterMapState.maybeOf(context);
-    if (mapState == null) return;
-
-    // Convert tap position to lat/lng
-    final tapPoint = mapState.camera.pointToLatLng(
-      CustomPoint(tapPosition.dx, tapPosition.dy),
-    );
-
-    // Check distance from each segment
-    for (int i = 0; i < segments.length; i++) {
-      final segment = segments[i];
-      final polylinePoints = segment.stations
-          .map((s) => LatLng(s.latitude, s.longitude))
-          .toList();
-
-      // Check if tap is near any line segment
-      if (_isPointNearPolyline(tapPoint, polylinePoints, mapState)) {
-        onSegmentTap(i);
-        return;
-      }
-    }
-  }
-
-  bool _isPointNearPolyline(
-    LatLng point,
-    List<LatLng> polylinePoints,
-    FlutterMapState mapState,
-  ) {
-    const hitTolerance = 15.0; // pixels
-
-    // Convert all points to pixel coordinates
-    final pointPixel = mapState.camera.latLngToScreenPoint(point);
-
-    for (int i = 0; i < polylinePoints.length - 1; i++) {
-      final p1 = mapState.camera.latLngToScreenPoint(polylinePoints[i]);
-      final p2 = mapState.camera.latLngToScreenPoint(polylinePoints[i + 1]);
-
-      // Check distance from point to line segment
-      final distance = _distanceFromPointToLineSegment(pointPixel, p1, p2);
-      if (distance <= hitTolerance) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  double _distanceFromPointToLineSegment(
-    Offset point,
-    Offset lineStart,
-    Offset lineEnd,
-  ) {
-    final dx = lineEnd.dx - lineStart.dx;
-    final dy = lineEnd.dy - lineStart.dy;
-    final distSquared = dx * dx + dy * dy;
-
-    if (distSquared == 0) {
-      return _distance(point, lineStart);
-    }
-
-    var t = ((point.dx - lineStart.dx) * dx + (point.dy - lineStart.dy) * dy) /
-        distSquared;
-    t = t.clamp(0, 1);
-
-    final closestPoint = Offset(
-      lineStart.dx + t * dx,
-      lineStart.dy + t * dy,
-    );
-
-    return _distance(point, closestPoint);
-  }
-
-  double _distance(Offset p1, Offset p2) {
-    final dx = p2.dx - p1.dx;
-    final dy = p2.dy - p1.dy;
-    return sqrt(dx * dx + dy * dy);
-  }
-}
-
-/// Custom painter for tap detection visualization
-class _TappablePolylinePainter extends CustomPainter {
-  final List<RouteSegment> segments;
-  final MapController mapController;
-
-  _TappablePolylinePainter({
-    required this.segments,
-    required this.mapController,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // This painter is transparent; it's just for tap detection
-  }
-
-  @override
-  bool shouldRepaint(_TappablePolylinePainter oldDelegate) => false;
 }
 
 /// A compact route preview for itinerary cards
