@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'dart:math';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/models/routing.dart';
 import 'package:sntf/data/models/transport.dart';
@@ -39,6 +40,7 @@ class RouteMapView extends StatefulWidget {
 class _RouteMapViewState extends State<RouteMapView> {
   late final MapController _mapController;
   String? _tileUrl;
+  int? _selectedSegmentIndex;
   
   @override
   void initState() {
@@ -156,9 +158,16 @@ class _RouteMapViewState extends State<RouteMapView> {
               userAgentPackageName: 'com.sntf.app',
             ),
             
-            // Route polylines
+            // Route polylines with tap detection
             PolylineLayer(
               polylines: _buildPolylines(),
+            ),
+            
+            // Tappable polyline overlay (invisible, for tap detection)
+            _TappablePolylineLayer(
+              segments: widget.itinerary.segments,
+              mapController: _mapController,
+              onSegmentTap: _showSegmentStations,
             ),
             
             // Station markers
@@ -378,6 +387,181 @@ class _RouteMapViewState extends State<RouteMapView> {
       return null;
     }
   }
+
+  void _showSegmentStations(int segmentIndex) {
+    final segment = widget.itinerary.segments[segmentIndex];
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkOnSurface.withValues(alpha: 0.3)
+                        : AppColors.lightOnSurface.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: _parseColor(segment.color) ?? AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                segment.ligne.nomCourt,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                segment.ligne.directionTerminus,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: isDark
+                                      ? AppColors.darkOnSurfaceVariant
+                                      : AppColors.lightOnSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${segment.stations.length} stations',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isDark
+                            ? AppColors.darkOnSurfaceVariant
+                            : AppColors.lightOnSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Stations list
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: segment.stations.length,
+                  itemBuilder: (context, index) {
+                    final station = segment.stations[index];
+                    final isFirst = index == 0;
+                    final isLast = index == segment.stations.length - 1;
+                    
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: _parseColor(segment.color) ?? AppColors.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isDark
+                                        ? AppColors.darkSurface
+                                        : AppColors.lightSurface,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              if (!isLast)
+                                Container(
+                                  width: 2,
+                                  height: 40,
+                                  color: _parseColor(segment.color) ?? AppColors.primary,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    station.nom,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  if (station.accessibilite)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            LucideIcons.wheelchair,
+                                            size: 14,
+                                            color: AppColors.success,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Accessible',
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              color: AppColors.success,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _StationMarker extends StatelessWidget {
@@ -440,6 +624,136 @@ class _StationMarker extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Custom layer for tappable polylines
+class _TappablePolylineLayer extends StatelessWidget {
+  final List<RouteSegment> segments;
+  final MapController mapController;
+  final Function(int segmentIndex) onSegmentTap;
+
+  const _TappablePolylineLayer({
+    required this.segments,
+    required this.mapController,
+    required this.onSegmentTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapUp: (details) {
+        _handleTap(context, details.localPosition);
+      },
+      child: Container(
+        color: Colors.transparent,
+        child: CustomPaint(
+          painter: _TappablePolylinePainter(
+            segments: segments,
+            mapController: mapController,
+          ),
+          size: Size.infinite,
+        ),
+      ),
+    );
+  }
+
+  void _handleTap(BuildContext context, Offset tapPosition) {
+    final mapState = FlutterMapState.maybeOf(context);
+    if (mapState == null) return;
+
+    // Convert tap position to lat/lng
+    final tapPoint = mapState.camera.pointToLatLng(
+      CustomPoint(tapPosition.dx, tapPosition.dy),
+    );
+
+    // Check distance from each segment
+    for (int i = 0; i < segments.length; i++) {
+      final segment = segments[i];
+      final polylinePoints = segment.stations
+          .map((s) => LatLng(s.latitude, s.longitude))
+          .toList();
+
+      // Check if tap is near any line segment
+      if (_isPointNearPolyline(tapPoint, polylinePoints, mapState)) {
+        onSegmentTap(i);
+        return;
+      }
+    }
+  }
+
+  bool _isPointNearPolyline(
+    LatLng point,
+    List<LatLng> polylinePoints,
+    FlutterMapState mapState,
+  ) {
+    const hitTolerance = 15.0; // pixels
+
+    // Convert all points to pixel coordinates
+    final pointPixel = mapState.camera.latLngToScreenPoint(point);
+
+    for (int i = 0; i < polylinePoints.length - 1; i++) {
+      final p1 = mapState.camera.latLngToScreenPoint(polylinePoints[i]);
+      final p2 = mapState.camera.latLngToScreenPoint(polylinePoints[i + 1]);
+
+      // Check distance from point to line segment
+      final distance = _distanceFromPointToLineSegment(pointPixel, p1, p2);
+      if (distance <= hitTolerance) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  double _distanceFromPointToLineSegment(
+    Offset point,
+    Offset lineStart,
+    Offset lineEnd,
+  ) {
+    final dx = lineEnd.dx - lineStart.dx;
+    final dy = lineEnd.dy - lineStart.dy;
+    final distSquared = dx * dx + dy * dy;
+
+    if (distSquared == 0) {
+      return _distance(point, lineStart);
+    }
+
+    var t = ((point.dx - lineStart.dx) * dx + (point.dy - lineStart.dy) * dy) /
+        distSquared;
+    t = t.clamp(0, 1);
+
+    final closestPoint = Offset(
+      lineStart.dx + t * dx,
+      lineStart.dy + t * dy,
+    );
+
+    return _distance(point, closestPoint);
+  }
+
+  double _distance(Offset p1, Offset p2) {
+    final dx = p2.dx - p1.dx;
+    final dy = p2.dy - p1.dy;
+    return sqrt(dx * dx + dy * dy);
+  }
+}
+
+/// Custom painter for tap detection visualization
+class _TappablePolylinePainter extends CustomPainter {
+  final List<RouteSegment> segments;
+  final MapController mapController;
+
+  _TappablePolylinePainter({
+    required this.segments,
+    required this.mapController,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // This painter is transparent; it's just for tap detection
+  }
+
+  @override
+  bool shouldRepaint(_TappablePolylinePainter oldDelegate) => false;
 }
 
 /// A compact route preview for itinerary cards
