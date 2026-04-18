@@ -197,6 +197,12 @@ class _ProfileTabState extends State<ProfileTab> {
                 _MenuItem(
                   icon: isDark ? LucideIcons.sun : LucideIcons.moon,
                   label: 'Thème ${isDark ? 'clair' : 'sombre'}',
+                  trailingWidget: Switch(
+                    value: isDark,
+                    onChanged: (_) {
+                      MyApp.of(context)?.toggleTheme();
+                    },
+                  ),
                   onTap: () {
                     MyApp.of(context)?.toggleTheme();
                   },
@@ -467,12 +473,14 @@ class _MenuItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? trailing;
+  final Widget? trailingWidget;
   final VoidCallback onTap;
 
   const _MenuItem({
     required this.icon,
     required this.label,
     this.trailing,
+    this.trailingWidget,
     required this.onTap,
   });
 
@@ -504,19 +512,27 @@ class _MenuItem extends StatelessWidget {
                 ),
               ),
             ),
-            if (trailing != null)
+            if (trailingWidget != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: trailingWidget,
+              )
+            else if (trailing != null)
               Text(
                 trailing!,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            const SizedBox(width: 8),
-            Icon(
-              LucideIcons.chevronRight,
-              size: 20,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            if (trailingWidget == null)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Icon(
+                  LucideIcons.chevronRight,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
           ],
         ),
       ),
