@@ -368,6 +368,7 @@ class _DetailedSegmentsState extends State<_DetailedSegments> {
       items.add(
         _CollapsibleSegmentDetail(
           segment: widget.segments[i],
+          segmentIndex: i,
           isFirst: i == 0,
           isLast: i == widget.segments.length - 1,
           isExpanded: _expandedSegments.contains(i),
@@ -382,35 +383,11 @@ class _DetailedSegmentsState extends State<_DetailedSegments> {
       );
       
       if (i < widget.segments.length - 1) {
+        // Enhanced transfer separator
         items.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    LucideIcons.arrowRightLeft,
-                    size: 14,
-                    color: AppColors.warning,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Correspondance',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.warning,
-                  ),
-                ),
-              ],
-            ),
+          _TransferSeparator(
+            fromSegment: widget.segments[i],
+            toSegment: widget.segments[i + 1],
           ),
         );
       }
@@ -421,6 +398,7 @@ class _DetailedSegmentsState extends State<_DetailedSegments> {
 
 class _CollapsibleSegmentDetail extends StatelessWidget {
   final RouteSegment segment;
+  final int segmentIndex;
   final bool isFirst;
   final bool isLast;
   final bool isExpanded;
@@ -428,6 +406,7 @@ class _CollapsibleSegmentDetail extends StatelessWidget {
 
   const _CollapsibleSegmentDetail({
     required this.segment,
+    required this.segmentIndex,
     this.isFirst = false,
     this.isLast = false,
     required this.isExpanded,
