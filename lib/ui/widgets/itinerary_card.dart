@@ -3,7 +3,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/models/routing.dart';
 import 'package:sntf/data/models/transport.dart';
-import 'package:sntf/ui/widgets/transfer_separator.dart';
 
 /// Card widget displaying an itinerary option
 class ItineraryCard extends StatelessWidget {
@@ -386,7 +385,7 @@ class _DetailedSegmentsState extends State<_DetailedSegments> {
       if (i < widget.segments.length - 1) {
         // Enhanced transfer separator
         items.add(
-          TransferSeparator(
+          _TransferSeparator(
             fromSegment: widget.segments[i],
             toSegment: widget.segments[i + 1],
           ),
