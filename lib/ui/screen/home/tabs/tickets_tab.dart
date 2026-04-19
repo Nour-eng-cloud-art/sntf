@@ -19,7 +19,7 @@ class _TicketsTabState extends State<TicketsTab> {
   List<ReservationNationale>? _tickets;
   bool _isLoading = true;
   String? _error;
-  
+
   @override
   void initState() {
     super.initState();
@@ -83,9 +83,7 @@ class _TicketsTabState extends State<TicketsTab> {
           ),
 
           // Content
-          Expanded(
-            child: _buildContent(context, isDark),
-          ),
+          Expanded(child: _buildContent(context, isDark)),
         ],
       ),
     );
@@ -93,6 +91,12 @@ class _TicketsTabState extends State<TicketsTab> {
 
   Widget _buildContent(BuildContext context, bool isDark) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth < 360
+        ? 12.0
+        : screenWidth < 600
+        ? 16.0
+        : 24.0;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -103,7 +107,11 @@ class _TicketsTabState extends State<TicketsTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.messageCircleWarning, size: 48, color: AppColors.error),
+            Icon(
+              LucideIcons.messageCircleWarning,
+              size: 48,
+              color: AppColors.error,
+            ),
             const SizedBox(height: 16),
             Text('Erreur de chargement', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -160,15 +168,20 @@ class _TicketsTabState extends State<TicketsTab> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
         itemCount: _tickets!.length,
         separatorBuilder: (_, __) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           final ticket = _tickets![index];
-          return _TicketCard(
-            reservation: ticket,
-            isDark: isDark,
-            onCancel: () => _cancelReservation(ticket.id),
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: _TicketCard(
+                reservation: ticket,
+                isDark: isDark,
+                onCancel: () => _cancelReservation(ticket.id),
+              ),
+            ),
           );
         },
       ),
@@ -239,7 +252,7 @@ class _TicketCard extends StatelessWidget {
     final isCompleted = reservation.isPast;
     final isCancelled = reservation.isCancelled;
     final isUpcoming = reservation.isUpcoming;
-    
+
     final from = reservation.villeDepart;
     final to = reservation.villeArrivee;
     final fromCode = _getStationCode(from);
@@ -247,213 +260,297 @@ class _TicketCard extends StatelessWidget {
 
     return GestureDetector(
       onLongPress: () => _showQRCodeDialog(context),
-      child: Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceVariant : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cardWidth = constraints.maxWidth;
+          final isCompact = cardWidth < 380;
+          final isWide = cardWidth > 640;
+          final horizontalPadding = isCompact ? 14.0 : (isWide ? 24.0 : 20.0);
+          final verticalPadding = isCompact ? 14.0 : 20.0;
+          final radius = isCompact ? 18.0 : 24.0;
+          final dashCount = (cardWidth / 12).clamp(18, 48).toInt();
+
+          return Container(
             decoration: BoxDecoration(
-              gradient: (isCompleted || isCancelled)
-                  ? null
-                  : LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.primary, AppColors.primaryDark],
-                    ),
-              color: (isCompleted || isCancelled)
-                  ? (isDark ? AppColors.grey800 : AppColors.grey200)
-                  : null,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _StationInfo(
-                  code: fromCode,
-                  name: from,
-                  isLight: !(isCompleted || isCancelled),
-                ),
-                Column(
-                  children: [
-                    Icon(
-                      LucideIcons.trainFront,
-                      color: (isCompleted || isCancelled)
-                          ? (isDark ? AppColors.grey400 : AppColors.grey600)
-                          : Colors.white,
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: (isCompleted || isCancelled)
-                            ? AppColors.grey400.withValues(alpha: 0.2)
-                            : Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        reservation.dureeFormatted,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: (isCompleted || isCancelled)
-                              ? (isDark ? AppColors.grey400 : AppColors.grey600)
-                              : Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                _StationInfo(
-                  code: toCode,
-                  name: to,
-                  isLight: !(isCompleted || isCancelled),
-                  isEnd: true,
+              color: isDark
+                  ? AppColors.darkSurfaceVariant
+                  : AppColors.lightSurface,
+              borderRadius: BorderRadius.circular(radius),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
-          ),
-
-          // Dashed Line
-          Row(
-            children: List.generate(
-              30,
-              (index) => Expanded(
-                child: Container(
-                  height: 2,
-                  color: index.isEven
-                      ? (isDark ? AppColors.grey700 : AppColors.grey300)
-                      : Colors.transparent,
-                ),
-              ),
-            ),
-          ),
-
-          // Details
-          Padding(
-            padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                Row(
-                  children: [
-                    _DetailItem(
-                      icon: LucideIcons.calendar,
-                      label: 'Date',
-                      value: reservation.dateVoyageFormatted,
-                    ),
-                    const Spacer(),
-                    _DetailItem(
-                      icon: LucideIcons.clock,
-                      label: 'Heure',
-                      value: reservation.heureDepartFormatted,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _DetailItem(
-                      icon: LucideIcons.hash,
-                      label: 'N° Réservation',
-                      value: reservation.numeroReservation,
-                    ),
-                    const Spacer(),
-                    _DetailItem(
-                      icon: LucideIcons.users,
-                      label: 'Voyageurs',
-                      value: '${reservation.nombrePassagers}',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                
-                // Footer
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Total',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                // Header
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: (isCompleted || isCancelled)
+                        ? null
+                        : LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [AppColors.primary, AppColors.primaryDark],
                           ),
-                        ),
-                        Text(
-                          '${reservation.prixTotal.round()} DA',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
+                    color: (isCompleted || isCancelled)
+                        ? (isDark ? AppColors.grey800 : AppColors.grey200)
+                        : null,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(radius),
                     ),
-                    if (isUpcoming)
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _StationInfo(
+                          code: fromCode,
+                          name: from,
+                          isLight: !(isCompleted || isCancelled),
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 8 : 12,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              LucideIcons.trainFront,
+                              size: isCompact ? 18 : 20,
+                              color: (isCompleted || isCancelled)
+                                  ? (isDark
+                                        ? AppColors.grey400
+                                        : AppColors.grey600)
+                                  : Colors.white,
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isCompact ? 10 : 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (isCompleted || isCancelled)
+                                    ? AppColors.grey400.withValues(alpha: 0.2)
+                                    : Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                reservation.dureeFormatted,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: (isCompleted || isCancelled)
+                                      ? (isDark
+                                            ? AppColors.grey400
+                                            : AppColors.grey600)
+                                      : Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: _StationInfo(
+                          code: toCode,
+                          name: to,
+                          isLight: !(isCompleted || isCancelled),
+                          isEnd: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Dashed Line
+                Row(
+                  children: List.generate(
+                    dashCount,
+                    (index) => Expanded(
+                      child: Container(
+                        height: 2,
+                        color: index.isEven
+                            ? (isDark ? AppColors.grey700 : AppColors.grey300)
+                            : Colors.transparent,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Details
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: Column(
+                    children: [
                       Row(
                         children: [
-                          _ActionButton(
-                            icon: LucideIcons.x,
-                            label: 'Annuler',
-                            onTap: () => _showCancelDialog(context),
+                          Expanded(
+                            child: _DetailItem(
+                              icon: LucideIcons.calendar,
+                              label: 'Date',
+                              value: reservation.dateVoyageFormatted,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          _ActionButton(
-                            icon: LucideIcons.qrCode,
-                            label: 'QR Code',
-                            onTap: () => _showQRCodeDialog(context),
-                            isPrimary: true,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _DetailItem(
+                              icon: LucideIcons.clock,
+                              label: 'Heure',
+                              value: reservation.heureDepartFormatted,
+                            ),
                           ),
                         ],
                       ),
-                    if (isCompleted)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.grey400.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Terminé',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.grey600,
-                            fontWeight: FontWeight.w600,
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DetailItem(
+                              icon: LucideIcons.hash,
+                              label: 'N° Réservation',
+                              value: reservation.numeroReservation,
+                            ),
                           ),
-                        ),
-                      ),
-                    if (isCancelled)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Annulé',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w600,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _DetailItem(
+                              icon: LucideIcons.users,
+                              label: 'Voyageurs',
+                              value: '${reservation.nombrePassagers}',
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                  ],
+                      const SizedBox(height: 20),
+
+                      // Footer
+                      if (isCompact)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildTotal(theme),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildStatusOrActions(context, theme),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildTotal(theme),
+                            Flexible(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: _buildStatusOrActions(context, theme),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTotal(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Total',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          '${reservation.prixTotal.round()} DA',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusOrActions(BuildContext context, ThemeData theme) {
+    final isCompleted = reservation.isPast;
+    final isCancelled = reservation.isCancelled;
+    final isUpcoming = reservation.isUpcoming;
+
+    if (isUpcoming) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _ActionButton(
+            icon: LucideIcons.x,
+            label: 'Annuler',
+            onTap: () => _showCancelDialog(context),
+          ),
+          _ActionButton(
+            icon: LucideIcons.qrCode,
+            label: 'QR Code',
+            onTap: () => _showQRCodeDialog(context),
+            isPrimary: true,
           ),
         ],
-      ),
-    ),
-    );
+      );
+    }
+
+    if (isCompleted) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.grey400.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Terminé',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: AppColors.grey600,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    if (isCancelled) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Annulé',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: AppColors.error,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   void _showQRCodeDialog(BuildContext context) {
@@ -462,7 +559,7 @@ class _TicketCard extends StatelessWidget {
     final screenSize = MediaQuery.of(context).size;
     final qrSize = (screenSize.width * 0.5).clamp(150.0, 250.0);
     final maxSheetHeight = screenSize.height * 0.85;
-    
+
     // Create QR data with all verification info
     final qrData = jsonEncode({
       'type': 'TRANSDZ_TICKET',
@@ -510,7 +607,7 @@ class _TicketCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Title
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -533,7 +630,7 @@ class _TicketCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // QR Code - Responsive size
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -562,74 +659,77 @@ class _TicketCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-              
-              // Ticket info summary
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDarkTheme 
-                      ? AppColors.darkSurfaceVariant 
-                      : AppColors.grey100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    _QRInfoRow(
-                      label: 'N° Réservation',
-                      value: reservation.numeroReservation,
-                      isHighlighted: true,
-                    ),
-                    const Divider(height: 16),
-                    _QRInfoRow(
-                      label: 'Trajet',
-                      value: '${reservation.villeDepart} → ${reservation.villeArrivee}',
-                    ),
-                    const SizedBox(height: 8),
-                    _QRInfoRow(
-                      label: 'Date',
-                      value: reservation.dateVoyageFormatted,
-                    ),
-                    const SizedBox(height: 8),
-                    _QRInfoRow(
-                      label: 'Heure',
-                      value: reservation.heureDepartFormatted,
-                    ),
-                    const SizedBox(height: 8),
-                    _QRInfoRow(
-                      label: 'Voyageurs',
-                      value: '${reservation.nombrePassagers}',
-                    ),
-                    if (reservation.voiture != null && reservation.place != null) ...[
+
+                // Ticket info summary
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDarkTheme
+                        ? AppColors.darkSurfaceVariant
+                        : AppColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _QRInfoRow(
+                        label: 'N° Réservation',
+                        value: reservation.numeroReservation,
+                        isHighlighted: true,
+                      ),
+                      const Divider(height: 16),
+                      _QRInfoRow(
+                        label: 'Trajet',
+                        value:
+                            '${reservation.villeDepart} → ${reservation.villeArrivee}',
+                      ),
                       const SizedBox(height: 8),
                       _QRInfoRow(
-                        label: 'Place',
-                        value: 'Voiture ${reservation.voiture}, Place ${reservation.place}',
+                        label: 'Date',
+                        value: reservation.dateVoyageFormatted,
                       ),
+                      const SizedBox(height: 8),
+                      _QRInfoRow(
+                        label: 'Heure',
+                        value: reservation.heureDepartFormatted,
+                      ),
+                      const SizedBox(height: 8),
+                      _QRInfoRow(
+                        label: 'Voyageurs',
+                        value: '${reservation.nombrePassagers}',
+                      ),
+                      if (reservation.voiture != null &&
+                          reservation.place != null) ...[
+                        const SizedBox(height: 8),
+                        _QRInfoRow(
+                          label: 'Place',
+                          value:
+                              'Voiture ${reservation.voiture}, Place ${reservation.place}',
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Close button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                   ),
-                  child: const Text('Fermer'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Fermer'),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -640,7 +740,9 @@ class _TicketCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Annuler la réservation ?'),
-        content: const Text('Cette action ne peut pas être annulée. Êtes-vous sûr de vouloir annuler ce billet ?'),
+        content: const Text(
+          'Cette action ne peut pas être annulée. Êtes-vous sûr de vouloir annuler ce billet ?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -681,7 +783,9 @@ class _StationInfo extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Column(
-      crossAxisAlignment: isEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Text(
           code,
@@ -694,6 +798,8 @@ class _StationInfo extends StatelessWidget {
         ),
         Text(
           name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
             color: isLight
                 ? Colors.white.withValues(alpha: 0.8)
@@ -721,25 +827,32 @@ class _DetailItem extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 16, color: AppColors.primary),
         const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            Text(
-              value,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -766,7 +879,9 @@ class _ActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isPrimary ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
+          color: isPrimary
+              ? AppColors.primary
+              : AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(

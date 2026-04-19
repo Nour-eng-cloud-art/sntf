@@ -5,8 +5,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
+import 'package:sntf/data/models/routing.dart';
+import 'package:sntf/data/models/transport.dart';
 import 'package:sntf/data/services/places_service.dart';
 import 'package:sntf/data/services/supabase_service.dart';
+import 'package:sntf/ui/widgets/segment_details_expanded.dart';
+import 'package:sntf/ui/widgets/transfer_separator.dart';
 
 class MapTab extends StatefulWidget {
   const MapTab({super.key});
@@ -18,16 +22,17 @@ class MapTab extends StatefulWidget {
 class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   final SupabaseService _supabaseService = SupabaseService();
-  
+
   bool _isMapReady = false;
   String? _apiKey;
-  
+
   // Route planning state
   Map<String, dynamic>? _startStation;
   Map<String, dynamic>? _endStation;
   List<Map<String, dynamic>> _availableStations = [];
   Map<String, dynamic>? _routeResult; // Multi-hop route result
-  List<Map<String, dynamic>> _routeSegments = []; // Route segments with transfers
+  List<Map<String, dynamic>> _routeSegments =
+      []; // Route segments with transfers
   List<Map<String, dynamic>> _allRouteOptions = []; // All available routes
   int _selectedRouteIndex = 0; // Currently selected route
   bool _isSearching = false;
@@ -35,10 +40,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   bool _isSelectingStart = true;
   String _stationSearchQuery = '';
   int _totalTransfers = 0;
-  
+
   // Collapsible panel states
   bool _isSearchPanelMinimized = false;
   bool _isItineraryPanelMinimized = false;
+  final Set<int> _expandedRouteSegments = {};
 
   @override
   void initState() {
@@ -67,7 +73,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   /// Search for connecting routes (with transfers if needed)
   Future<void> _searchRoutes() async {
     if (_startStation == null || _endStation == null) return;
-    
+
     setState(() {
       _isSearching = true;
       _routeResult = null;
@@ -75,29 +81,36 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _allRouteOptions = [];
       _selectedRouteIndex = 0;
       _totalTransfers = 0;
+      _expandedRouteSegments.clear();
     });
-    
+
     try {
       final result = await _supabaseService.findRoutesWithTransfers(
         _startStation!['id'].toString(),
         _endStation!['id'].toString(),
       );
-      
+
       setState(() {
         _routeResult = result;
-        _allRouteOptions = List<Map<String, dynamic>>.from(result['allRouteOptions'] ?? []);
+        _allRouteOptions = List<Map<String, dynamic>>.from(
+          result['allRouteOptions'] ?? [],
+        );
         _selectedRouteIndex = 0;
-        
+
         if (_allRouteOptions.isNotEmpty) {
-          _routeSegments = List<Map<String, dynamic>>.from(_allRouteOptions[0]['segments'] ?? []);
+          _routeSegments = List<Map<String, dynamic>>.from(
+            _allRouteOptions[0]['segments'] ?? [],
+          );
           _totalTransfers = _allRouteOptions[0]['totalTransfers'] ?? 0;
         } else {
-          _routeSegments = List<Map<String, dynamic>>.from(result['segments'] ?? []);
+          _routeSegments = List<Map<String, dynamic>>.from(
+            result['segments'] ?? [],
+          );
           _totalTransfers = result['totalTransfers'] ?? 0;
         }
         _isSearching = false;
       });
-      
+
       // Fit map to show the route
       if (_routeSegments.isNotEmpty) {
         _fitMapToRoute();
@@ -113,43 +126,43 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   /// Select a different route option
   void _selectRoute(int index) {
     if (index < 0 || index >= _allRouteOptions.length) return;
-    
+
     setState(() {
       _selectedRouteIndex = index;
-      _routeSegments = List<Map<String, dynamic>>.from(_allRouteOptions[index]['segments'] ?? []);
+      _routeSegments = List<Map<String, dynamic>>.from(
+        _allRouteOptions[index]['segments'] ?? [],
+      );
       _totalTransfers = _allRouteOptions[index]['totalTransfers'] ?? 0;
+      _expandedRouteSegments.clear();
     });
-    
+
     _fitMapToRoute();
   }
 
   /// Fit map to show all points of the route
   void _fitMapToRoute() {
     if (!_isMapReady) return;
-    
+
     final points = <LatLng>[];
-    
+
     if (_startStation != null) {
       final coords = _extractCoordinates(_startStation!);
       if (coords != null) {
         points.add(coords);
       }
     }
-    
+
     if (_endStation != null) {
       final coords = _extractCoordinates(_endStation!);
       if (coords != null) {
         points.add(coords);
       }
     }
-    
+
     if (points.length >= 2) {
       final bounds = LatLngBounds.fromPoints(points);
       _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.all(80),
-        ),
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(80)),
       );
     }
   }
@@ -175,7 +188,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _routeSegments = [];
       _routeResult = null;
     });
-    
+
     // Auto-search when both stations are selected
     if (_startStation != null && _endStation != null) {
       _searchRoutes();
@@ -192,6 +205,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _allRouteOptions = [];
       _selectedRouteIndex = 0;
       _totalTransfers = 0;
+      _expandedRouteSegments.clear();
     });
   }
 
@@ -206,7 +220,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _allRouteOptions = [];
       _selectedRouteIndex = 0;
     });
-    
+
     if (_startStation != null && _endStation != null) {
       _searchRoutes();
     }
@@ -214,7 +228,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
-    
+
     // Start station marker
     if (_startStation != null) {
       final coords = _extractCoordinates(_startStation!);
@@ -247,7 +261,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         );
       }
     }
-    
+
     // End station marker
     if (_endStation != null) {
       final coords = _extractCoordinates(_endStation!);
@@ -280,31 +294,34 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         );
       }
     }
-    
+
     // Transfer markers and intermediate stations
     for (int segIndex = 0; segIndex < _routeSegments.length; segIndex++) {
       final segment = _routeSegments[segIndex];
       final stations = segment['stations'] as List?;
       final ligne = segment['ligne'] as Map<String, dynamic>?;
       final ligneColor = _parseColor(ligne?['couleur']);
-      
+
       if (stations == null) continue;
-      
+
       for (int i = 0; i < stations.length; i++) {
         final stop = stations[i];
         final station = stop['stations'] as Map<String, dynamic>?;
         if (station == null) continue;
-        
+
         final coords = _extractCoordinates(station);
         if (coords == null) continue;
-        
+
         // Skip if it's start or end station
-        if (_startStation != null && station['id'] == _startStation!['id']) continue;
-        if (_endStation != null && station['id'] == _endStation!['id']) continue;
-        
+        if (_startStation != null && station['id'] == _startStation!['id'])
+          continue;
+        if (_endStation != null && station['id'] == _endStation!['id'])
+          continue;
+
         // Check if this is a transfer point (last station of current segment, not the final segment)
-        final isTransfer = i == stations.length - 1 && segIndex < _routeSegments.length - 1;
-        
+        final isTransfer =
+            i == stations.length - 1 && segIndex < _routeSegments.length - 1;
+
         if (isTransfer) {
           // Transfer marker - larger and different style
           markers.add(
@@ -362,44 +379,40 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         }
       }
     }
-    
+
     return markers;
   }
 
   List<Polyline> _buildPolylines() {
     final polylines = <Polyline>[];
-    
+
     // Draw each segment with its ligne color
     for (final segment in _routeSegments) {
       final stations = segment['stations'] as List?;
       final ligne = segment['ligne'] as Map<String, dynamic>?;
-      
+
       if (stations == null || stations.isEmpty) continue;
-      
+
       final ligneColor = _parseColor(ligne?['couleur']);
       final points = <LatLng>[];
-      
+
       for (final stop in stations) {
         final station = stop['stations'] as Map<String, dynamic>?;
         if (station == null) continue;
-        
+
         final coords = _extractCoordinates(station);
         if (coords != null) {
           points.add(coords);
         }
       }
-      
+
       if (points.length >= 2) {
         polylines.add(
-          Polyline(
-            points: points,
-            color: ligneColor,
-            strokeWidth: 5,
-          ),
+          Polyline(points: points, color: ligneColor, strokeWidth: 5),
         );
       }
     }
-    
+
     return polylines;
   }
 
@@ -413,7 +426,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         return LatLng((lat as num).toDouble(), (lng as num).toDouble());
       }
     }
-    
+
     // Try PostGIS location string
     if (station.containsKey('location')) {
       final location = station['location'];
@@ -428,9 +441,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             return LatLng(lat, lng);
           }
         }
-        
+
         // Try WKB hex format
-        if (location.length >= 50 && RegExp(r'^[0-9A-Fa-f]+$').hasMatch(location)) {
+        if (location.length >= 50 &&
+            RegExp(r'^[0-9A-Fa-f]+$').hasMatch(location)) {
           final coords = _parseWkbHex(location);
           if (coords != null) {
             return coords;
@@ -446,46 +460,49 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         }
       }
     }
-    
+
     return null;
   }
-  
+
   /// Parse PostGIS WKB hex format for Point geometry
   LatLng? _parseWkbHex(String hex) {
     if (hex.length < 50) return null;
-    
+
     try {
       // Parse byte order (01 = little endian)
       final byteOrder = int.parse(hex.substring(0, 2), radix: 16);
       final isLittleEndian = byteOrder == 1;
-      
+
       // Skip type (4 bytes) and SRID (4 bytes) = 18 hex chars total from start
       const coordsStart = 18;
-      
+
       // Extract coordinates
       final xHex = hex.substring(coordsStart, coordsStart + 16);
       final yHex = hex.substring(coordsStart + 16, coordsStart + 32);
-      
+
       final lng = _parseHexDouble(xHex, isLittleEndian);
       final lat = _parseHexDouble(yHex, isLittleEndian);
-      
+
       if (lng != null && lat != null && lat.abs() <= 90 && lng.abs() <= 180) {
         return LatLng(lat, lng);
       }
     } catch (e) {
       // Ignore parsing errors
     }
-    
+
     return null;
   }
-  
+
   /// Parse hex string to IEEE 754 double
   double? _parseHexDouble(String hex, bool isLittleEndian) {
     if (hex.length != 16) return null;
-    
+
     try {
-      final bytes = List<int>.generate(8, (i) => int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16));
-      
+      final bytes = List<int>.generate(
+        8,
+        (i) => int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16),
+      );
+
       int bits = 0;
       if (isLittleEndian) {
         for (int i = 7; i >= 0; i--) {
@@ -496,7 +513,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           bits = (bits << 8) | byte;
         }
       }
-      
+
       final data = ByteData(8);
       data.setInt64(0, bits);
       return data.getFloat64(0);
@@ -513,6 +530,141 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       final name = station['nom']?.toString().toLowerCase() ?? '';
       return name.contains(_stationSearchQuery.toLowerCase());
     }).toList();
+  }
+
+  RouteSegment? _buildRouteSegmentFromRaw(Map<String, dynamic> rawSegment) {
+    final rawLigne = rawSegment['ligne'] as Map<String, dynamic>?;
+    final rawStations = rawSegment['stations'] as List?;
+    if (rawLigne == null || rawStations == null || rawStations.isEmpty) {
+      return null;
+    }
+
+    final stations = <Station>[];
+    for (final stop in rawStations) {
+      if (stop is! Map<String, dynamic>) continue;
+
+      Map<String, dynamic>? rawStation;
+      final nestedStation = stop['stations'];
+      if (nestedStation is Map<String, dynamic>) {
+        rawStation = Map<String, dynamic>.from(nestedStation);
+      } else if (stop.containsKey('id') && stop.containsKey('nom')) {
+        rawStation = Map<String, dynamic>.from(stop);
+      }
+      if (rawStation == null) continue;
+
+      final coords = _extractCoordinates(rawStation);
+      if (coords != null) {
+        rawStation['latitude'] = coords.latitude;
+        rawStation['longitude'] = coords.longitude;
+      }
+
+      rawStation['id'] = (rawStation['id'] ?? '').toString();
+      rawStation['nom'] = (rawStation['nom'] ?? 'Station').toString();
+      rawStation['accessibilite'] = rawStation['accessibilite'] ?? false;
+
+      try {
+        stations.add(Station.fromJson(rawStation));
+      } catch (_) {
+        // Ignore malformed station entries from route payload
+      }
+    }
+
+    if (stations.isEmpty) return null;
+
+    final normalizedLigne = <String, dynamic>{
+      'id': (rawLigne['id'] ?? 'ligne-temp').toString(),
+      'nom_court': (rawLigne['nom_court'] ?? rawLigne['nom'] ?? 'Ligne')
+          .toString(),
+      'direction_terminus': (rawLigne['direction_terminus'] ?? 'Terminus')
+          .toString(),
+      'couleur_hex': (rawLigne['couleur_hex'] ?? rawLigne['couleur'])
+          ?.toString(),
+      'type': (rawLigne['type'] ?? 'bus').toString(),
+    };
+
+    final ligne = Ligne.fromJson(normalizedLigne);
+    final stopCount = stations.length > 1 ? stations.length - 1 : 1;
+    final estimatedDuration = _estimateSegmentDuration(
+      stations,
+      ligne.type,
+      rawLigne['type']?.toString().toLowerCase(),
+    );
+
+    return RouteSegment(
+      ligne: ligne,
+      stations: stations,
+      departureStation: stations.first,
+      arrivalStation: stations.last,
+      estimatedDuration: estimatedDuration,
+      stopCount: stopCount,
+    );
+  }
+
+  Duration _estimateSegmentDuration(
+    List<Station> stations,
+    TransportType type,
+    String? rawType,
+  ) {
+    if (stations.length < 2) {
+      return const Duration(minutes: 2);
+    }
+
+    // Fallback for explicit walking segments from graph payload.
+    if (rawType == 'walking') {
+      double walkKm = 0;
+      for (int i = 1; i < stations.length; i++) {
+        walkKm += _distanceKmBetween(stations[i - 1], stations[i]);
+      }
+      final walkMinutes = (walkKm / 4.8) * 60;
+      return Duration(minutes: walkMinutes.ceil().clamp(2, 90));
+    }
+
+    final speedKmH = switch (type) {
+      TransportType.bus => 22.0,
+      TransportType.metro => 34.0,
+      TransportType.tramway => 25.0,
+      TransportType.rer => 45.0,
+      TransportType.train => 55.0,
+    };
+
+    final dwellPerIntermediateStopMin = switch (type) {
+      TransportType.bus => 0.45,
+      TransportType.metro => 0.35,
+      TransportType.tramway => 0.4,
+      TransportType.rer => 0.3,
+      TransportType.train => 0.25,
+    };
+
+    double totalDistanceKm = 0;
+    for (int i = 1; i < stations.length; i++) {
+      totalDistanceKm += _distanceKmBetween(stations[i - 1], stations[i]);
+    }
+
+    final runningMinutes = (totalDistanceKm / speedKmH) * 60;
+    final intermediateStops = (stations.length - 2).clamp(0, 1000);
+    final dwellMinutes = intermediateStops * dwellPerIntermediateStopMin;
+
+    // Includes acceleration/deceleration and passenger boarding buffer.
+    final operationalBufferMinutes = switch (type) {
+      TransportType.bus => 2.0,
+      TransportType.metro => 1.5,
+      TransportType.tramway => 1.8,
+      TransportType.rer => 1.2,
+      TransportType.train => 1.0,
+    };
+
+    final totalMinutes =
+        runningMinutes + dwellMinutes + operationalBufferMinutes;
+    return Duration(minutes: totalMinutes.ceil().clamp(2, 120));
+  }
+
+  double _distanceKmBetween(Station a, Station b) {
+    final distance = const Distance();
+    return distance.as(
+      LengthUnit.Kilometer,
+      LatLng(a.latitude, a.longitude),
+      LatLng(b.latitude, b.longitude),
+    );
   }
 
   @override
@@ -595,10 +747,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 children: [
                   // Collapsible header
                   InkWell(
-                    onTap: () => setState(() => _isSearchPanelMinimized = !_isSearchPanelMinimized),
+                    onTap: () => setState(
+                      () => _isSearchPanelMinimized = !_isSearchPanelMinimized,
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       child: Row(
                         children: [
                           Icon(
@@ -609,7 +766,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              _isSearchPanelMinimized && (_startStation != null || _endStation != null)
+                              _isSearchPanelMinimized &&
+                                      (_startStation != null ||
+                                          _endStation != null)
                                   ? '${_startStation?['nom'] ?? '...'} → ${_endStation?['nom'] ?? '...'}'
                                   : 'Recherche d\'itinéraire',
                               style: theme.textTheme.titleSmall?.copyWith(
@@ -656,6 +815,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                     _routeResult = null;
                                     _allRouteOptions = [];
                                     _selectedRouteIndex = 0;
+                                    _expandedRouteSegments.clear();
                                   }),
                                   theme: theme,
                                   isDark: isDark,
@@ -674,14 +834,18 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                       ),
                                     ),
                                     const Spacer(),
-                                    if (_startStation != null && _endStation != null)
+                                    if (_startStation != null &&
+                                        _endStation != null)
                                       GestureDetector(
                                         onTap: _swapStations,
                                         child: Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                            color: AppColors.primary.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(10),
+                                            color: AppColors.primary
+                                                .withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Icon(
                                             LucideIcons.arrowUpDown,
@@ -707,6 +871,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                     _routeResult = null;
                                     _allRouteOptions = [];
                                     _selectedRouteIndex = 0;
+                                    _expandedRouteSegments.clear();
                                   }),
                                   theme: theme,
                                   isDark: isDark,
@@ -716,7 +881,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                   Padding(
                                     padding: const EdgeInsets.only(top: 12),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         SizedBox(
                                           width: 16,
@@ -729,9 +895,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                         const SizedBox(width: 8),
                                         Text(
                                           'Recherche des lignes...',
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                            color: AppColors.grey500,
-                                          ),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: AppColors.grey500,
+                                              ),
                                         ),
                                       ],
                                     ),
@@ -743,16 +910,25 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: Colors.green.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(10),
+                                            color: Colors.green.withOpacity(
+                                              0.1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Icon(
-                                                _totalTransfers > 0 ? LucideIcons.repeat : LucideIcons.check,
+                                                _totalTransfers > 0
+                                                    ? LucideIcons.repeat
+                                                    : LucideIcons.check,
                                                 size: 16,
                                                 color: Colors.green,
                                               ),
@@ -761,10 +937,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                                 _totalTransfers > 0
                                                     ? '${_routeSegments.length} segment${_routeSegments.length > 1 ? 's' : ''} · $_totalTransfers correspondance${_totalTransfers > 1 ? 's' : ''}'
                                                     : 'Ligne directe trouvée',
-                                                style: theme.textTheme.bodySmall?.copyWith(
-                                                  color: Colors.green,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
+                                                style: theme.textTheme.bodySmall
+                                                    ?.copyWith(
+                                                      color: Colors.green,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
                                               ),
                                             ],
                                           ),
@@ -777,61 +955,125 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                             child: ListView.separated(
                                               scrollDirection: Axis.horizontal,
                                               shrinkWrap: true,
-                                              itemCount: _allRouteOptions.length,
-                                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                              itemCount:
+                                                  _allRouteOptions.length,
+                                              separatorBuilder: (_, __) =>
+                                                  const SizedBox(width: 8),
                                               itemBuilder: (context, index) {
-                                                final option = _allRouteOptions[index];
-                                                final isSelected = index == _selectedRouteIndex;
-                                                final segments = option['segments'] as List;
-                                                final transfers = option['totalTransfers'] ?? 0;
-                                                
+                                                final option =
+                                                    _allRouteOptions[index];
+                                                final isSelected =
+                                                    index ==
+                                                    _selectedRouteIndex;
+                                                final segments =
+                                                    option['segments'] as List;
+                                                final transfers =
+                                                    option['totalTransfers'] ??
+                                                    0;
+
                                                 // Get ligne info for display
-                                                String routeLabel = 'Option ${index + 1}';
+                                                String routeLabel =
+                                                    'Option ${index + 1}';
                                                 if (segments.isNotEmpty) {
-                                                  final lignes = segments.map((s) {
-                                                    final ligne = s['ligne'] as Map<String, dynamic>?;
-                                                    return ligne?['nom_court'] ?? '';
-                                                  }).where((s) => s.isNotEmpty).toSet().join(' → ');
-                                                  if (lignes.isNotEmpty) routeLabel = lignes;
+                                                  final lignes = segments
+                                                      .map((s) {
+                                                        final ligne =
+                                                            s['ligne']
+                                                                as Map<
+                                                                  String,
+                                                                  dynamic
+                                                                >?;
+                                                        return ligne?['nom_court'] ??
+                                                            '';
+                                                      })
+                                                      .where(
+                                                        (s) => s.isNotEmpty,
+                                                      )
+                                                      .toSet()
+                                                      .join(' → ');
+                                                  if (lignes.isNotEmpty)
+                                                    routeLabel = lignes;
                                                 }
-                                                
+
                                                 return GestureDetector(
-                                                  onTap: () => _selectRoute(index),
+                                                  onTap: () =>
+                                                      _selectRoute(index),
                                                   child: Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 6,
+                                                        ),
                                                     decoration: BoxDecoration(
-                                                      color: isSelected 
-                                                          ? AppColors.primary 
-                                                          : (isDark ? AppColors.darkSurface : Colors.grey.shade100),
-                                                      borderRadius: BorderRadius.circular(18),
+                                                      color: isSelected
+                                                          ? AppColors.primary
+                                                          : (isDark
+                                                                ? AppColors
+                                                                      .darkSurface
+                                                                : Colors
+                                                                      .grey
+                                                                      .shade100),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            18,
+                                                          ),
                                                       border: Border.all(
-                                                        color: isSelected ? AppColors.primary : AppColors.grey300,
+                                                        color: isSelected
+                                                            ? AppColors.primary
+                                                            : AppColors.grey300,
                                                         width: 1,
                                                       ),
                                                     ),
                                                     child: Row(
-                                                      mainAxisSize: MainAxisSize.min,
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                                       children: [
                                                         Text(
                                                           routeLabel,
-                                                          style: theme.textTheme.bodySmall?.copyWith(
-                                                            color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
-                                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                                          ),
+                                                          style: theme
+                                                              .textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                                color:
+                                                                    isSelected
+                                                                    ? Colors
+                                                                          .white
+                                                                    : (isDark
+                                                                          ? Colors.white70
+                                                                          : Colors.black87),
+                                                                fontWeight:
+                                                                    isSelected
+                                                                    ? FontWeight
+                                                                          .bold
+                                                                    : FontWeight
+                                                                          .normal,
+                                                              ),
                                                         ),
                                                         if (transfers > 0) ...[
-                                                          const SizedBox(width: 4),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
                                                           Icon(
                                                             LucideIcons.repeat,
                                                             size: 12,
-                                                            color: isSelected ? Colors.white70 : Colors.orange,
+                                                            color: isSelected
+                                                                ? Colors.white70
+                                                                : Colors.orange,
                                                           ),
                                                           Text(
                                                             '$transfers',
-                                                            style: theme.textTheme.bodySmall?.copyWith(
-                                                              color: isSelected ? Colors.white70 : Colors.orange,
-                                                              fontSize: 10,
-                                                            ),
+                                                            style: theme
+                                                                .textTheme
+                                                                .bodySmall
+                                                                ?.copyWith(
+                                                                  color:
+                                                                      isSelected
+                                                                      ? Colors
+                                                                            .white70
+                                                                      : Colors
+                                                                            .orange,
+                                                                  fontSize: 10,
+                                                                ),
                                                           ),
                                                         ],
                                                       ],
@@ -845,11 +1087,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                       ],
                                     ),
                                   )
-                                else if (_startStation != null && _endStation != null)
+                                else if (_startStation != null &&
+                                    _endStation != null)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 12),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.orange.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(10),
@@ -865,10 +1111,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                           const SizedBox(width: 6),
                                           Text(
                                             'Aucune ligne directe trouvée',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: Colors.orange,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: Colors.orange,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                           ),
                                         ],
                                       ),
@@ -961,7 +1208,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 children: [
                   // Collapsible header
                   InkWell(
-                    onTap: () => setState(() => _isItineraryPanelMinimized = !_isItineraryPanelMinimized),
+                    onTap: () => setState(
+                      () => _isItineraryPanelMinimized =
+                          !_isItineraryPanelMinimized,
+                    ),
                     borderRadius: BorderRadius.circular(16),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -975,7 +1225,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _totalTransfers > 0 ? 'Itinéraire avec correspondance' : 'Ligne directe',
+                              _totalTransfers > 0
+                                  ? 'Itinéraire avec correspondance'
+                                  : 'Ligne directe',
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1001,7 +1253,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                     child: _isItineraryPanelMinimized
                         ? const SizedBox.shrink()
                         : ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 180),
+                            constraints: const BoxConstraints(maxHeight: 320),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1009,54 +1261,211 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                 Flexible(
                                   child: ListView.builder(
                                     shrinkWrap: true,
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                      horizontal: 12,
+                                    ),
                                     itemCount: _routeSegments.length,
                                     itemBuilder: (context, index) {
                                       final segment = _routeSegments[index];
-                                      final ligne = segment['ligne'] as Map<String, dynamic>;
-                                      final stations = segment['stations'] as List;
-                                      final ligneColor = _parseColor(ligne['couleur']);
-                                      final isLastSegment = index == _routeSegments.length - 1;
-                                      
+                                      final routeSegment =
+                                          _buildRouteSegmentFromRaw(segment);
+                                      if (routeSegment == null) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final ligne =
+                                          (segment['ligne']
+                                              as Map<String, dynamic>?) ??
+                                          const <String, dynamic>{};
+                                      final ligneColor = _parseColor(
+                                        (ligne['couleur'] ??
+                                                ligne['couleur_hex'])
+                                            ?.toString(),
+                                      );
+                                      final isLastSegment =
+                                          index == _routeSegments.length - 1;
+                                      final isExpanded = _expandedRouteSegments
+                                          .contains(index);
+                                      final nextRouteSegment = isLastSegment
+                                          ? null
+                                          : _buildRouteSegmentFromRaw(
+                                              _routeSegments[index + 1],
+                                            );
+
                                       return Column(
                                         children: [
-                                          ListTile(
-                                            leading: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          InkWell(
+                                            onTap: () {
+                                              setState(() {
+                                                if (isExpanded) {
+                                                  _expandedRouteSegments.remove(
+                                                    index,
+                                                  );
+                                                } else {
+                                                  _expandedRouteSegments.add(
+                                                    index,
+                                                  );
+                                                }
+                                              });
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child: Container(
+                                              margin: const EdgeInsets.only(
+                                                bottom: 6,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 10,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: ligneColor,
-                                                borderRadius: BorderRadius.circular(8),
+                                                color: isDark
+                                                    ? AppColors
+                                                          .darkSurfaceVariant
+                                                    : AppColors
+                                                          .lightSurfaceVariant,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
                                               ),
-                                              child: Text(
-                                                ligne['nom_court'] ?? ligne['nom'] ?? 'Ligne',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
-                                                ),
+                                              child: Column(
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 12,
+                                                              vertical: 6,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: ligneColor,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          (ligne['nom_court'] ??
+                                                                  ligne['nom'] ??
+                                                                  'Ligne')
+                                                              .toString(),
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 14,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              routeSegment
+                                                                  .description,
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .bodyMedium
+                                                                  ?.copyWith(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                  ),
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                            Text(
+                                                              '${routeSegment.stations.length} arrêts',
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .bodyMedium
+                                                                  ?.copyWith(
+                                                                    color: AppColors
+                                                                        .grey500,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      AnimatedRotation(
+                                                        turns: isExpanded
+                                                            ? 0.25
+                                                            : 0,
+                                                        duration:
+                                                            const Duration(
+                                                              milliseconds: 200,
+                                                            ),
+                                                        child: Icon(
+                                                          LucideIcons
+                                                              .chevronRight,
+                                                          size: 20,
+                                                          color:
+                                                              AppColors.grey400,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  AnimatedSize(
+                                                    duration: const Duration(
+                                                      milliseconds: 250,
+                                                    ),
+                                                    curve: Curves.easeInOut,
+                                                    child: isExpanded
+                                                        ? Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  top: 10,
+                                                                ),
+                                                            child: SegmentDetailsExpanded(
+                                                              segment:
+                                                                  routeSegment,
+                                                              segmentColor:
+                                                                  ligneColor,
+                                                              isExpanded:
+                                                                  isExpanded,
+                                                            ),
+                                                          )
+                                                        : const SizedBox.shrink(),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                            title: Text(
-                                              ligne['nom'] ?? 'Segment ${index + 1}',
-                                              style: theme.textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            subtitle: Text(
-                                              '${stations.length} arrêts',
-                                              style: theme.textTheme.bodySmall?.copyWith(
-                                                color: AppColors.grey500,
-                                              ),
-                                            ),
-                                            trailing: Icon(
-                                              LucideIcons.chevronRight,
-                                              size: 18,
-                                              color: AppColors.grey400,
                                             ),
                                           ),
-                                          if (!isLastSegment)
-                                            Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                          if (!isLastSegment &&
+                                              nextRouteSegment != null)
+                                            TransferSeparator(
+                                              fromSegment: routeSegment,
+                                              toSegment: nextRouteSegment,
+                                            )
+                                          else if (!isLastSegment)
+                                            Container(
+                                              width: double.infinity,
+                                              margin: const EdgeInsets.only(
+                                                top: 2,
+                                                bottom: 10,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange
+                                                    .withOpacity(0.12),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
                                               child: Row(
                                                 children: [
                                                   Icon(
@@ -1067,10 +1476,14 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                                   const SizedBox(width: 8),
                                                   Text(
                                                     'Correspondance',
-                                                    style: theme.textTheme.bodySmall?.copyWith(
-                                                      color: Colors.orange,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
+                                                    style: theme
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: Colors.orange,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
                                                   ),
                                                 ],
                                               ),
@@ -1112,19 +1525,27 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                             child: Row(
                               children: [
                                 Icon(
-                                  _isSelectingStart ? LucideIcons.circleDot : LucideIcons.mapPin,
-                                  color: _isSelectingStart ? Colors.green : Colors.red,
+                                  _isSelectingStart
+                                      ? LucideIcons.circleDot
+                                      : LucideIcons.mapPin,
+                                  color: _isSelectingStart
+                                      ? Colors.green
+                                      : Colors.red,
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
-                                  _isSelectingStart ? 'Choisir le départ' : 'Choisir l\'arrivée',
+                                  _isSelectingStart
+                                      ? 'Choisir le départ'
+                                      : 'Choisir l\'arrivée',
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 const Spacer(),
                                 GestureDetector(
-                                  onTap: () => setState(() => _showStationPicker = false),
+                                  onTap: () => setState(
+                                    () => _showStationPicker = false,
+                                  ),
                                   child: const Icon(LucideIcons.x),
                                 ),
                               ],
@@ -1133,17 +1554,26 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: TextField(
-                              onChanged: (value) => setState(() => _stationSearchQuery = value),
+                              onChanged: (value) =>
+                                  setState(() => _stationSearchQuery = value),
                               decoration: InputDecoration(
                                 hintText: 'Rechercher une station...',
-                                prefixIcon: const Icon(LucideIcons.search, size: 20),
+                                prefixIcon: const Icon(
+                                  LucideIcons.search,
+                                  size: 20,
+                                ),
                                 filled: true,
-                                fillColor: isDark ? AppColors.darkSurfaceVariant : AppColors.grey100,
+                                fillColor: isDark
+                                    ? AppColors.darkSurfaceVariant
+                                    : AppColors.grey100,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: BorderSide.none,
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                           ),
@@ -1162,46 +1592,68 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                         const SizedBox(height: 16),
                                         Text(
                                           'Aucune station trouvée',
-                                          style: theme.textTheme.bodyMedium?.copyWith(
-                                            color: AppColors.grey500,
-                                          ),
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                color: AppColors.grey500,
+                                              ),
                                         ),
                                       ],
                                     ),
                                   )
                                 : ListView.builder(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
                                     itemCount: _filteredStations.length,
                                     itemBuilder: (context, index) {
                                       final station = _filteredStations[index];
-                                      final isSelected = (_isSelectingStart && _startStation?['id'] == station['id']) ||
-                                          (!_isSelectingStart && _endStation?['id'] == station['id']);
-                                      
+                                      final isSelected =
+                                          (_isSelectingStart &&
+                                              _startStation?['id'] ==
+                                                  station['id']) ||
+                                          (!_isSelectingStart &&
+                                              _endStation?['id'] ==
+                                                  station['id']);
+
                                       return ListTile(
                                         onTap: () => _selectStation(station),
                                         leading: Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
                                             color: isSelected
-                                                ? AppColors.primary.withOpacity(0.1)
+                                                ? AppColors.primary.withOpacity(
+                                                    0.1,
+                                                  )
                                                 : AppColors.grey100,
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Icon(
                                             LucideIcons.mapPin,
-                                            color: isSelected ? AppColors.primary : AppColors.grey500,
+                                            color: isSelected
+                                                ? AppColors.primary
+                                                : AppColors.grey500,
                                             size: 20,
                                           ),
                                         ),
                                         title: Text(
                                           station['nom'] ?? 'Station',
-                                          style: theme.textTheme.bodyMedium?.copyWith(
-                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                            color: isSelected ? AppColors.primary : null,
-                                          ),
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                fontWeight: isSelected
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                                color: isSelected
+                                                    ? AppColors.primary
+                                                    : null,
+                                              ),
                                         ),
                                         trailing: isSelected
-                                            ? Icon(LucideIcons.check, color: AppColors.primary)
+                                            ? Icon(
+                                                LucideIcons.check,
+                                                color: AppColors.primary,
+                                              )
                                             : null,
                                       );
                                     },
@@ -1319,10 +1771,7 @@ class _MapButton extends StatelessWidget {
           color: isDark ? AppColors.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8),
           ],
         ),
         child: Icon(icon, size: 20),

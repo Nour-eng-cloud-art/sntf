@@ -3,6 +3,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sntf/core/theme/app_colors.dart';
 import 'package:sntf/data/models/routing.dart';
 import 'package:sntf/data/models/transport.dart';
+import 'package:sntf/ui/widgets/segment_details_expanded.dart';
+import 'package:sntf/ui/widgets/transfer_separator.dart';
 
 /// Card widget displaying an itinerary option
 class ItineraryCard extends StatelessWidget {
@@ -385,7 +387,7 @@ class _DetailedSegmentsState extends State<_DetailedSegments> {
       if (i < widget.segments.length - 1) {
         // Enhanced transfer separator
         items.add(
-          _TransferSeparator(
+          TransferSeparator(
             fromSegment: widget.segments[i],
             toSegment: widget.segments[i + 1],
           ),
@@ -509,116 +511,15 @@ class _CollapsibleSegmentDetail extends StatelessWidget {
               ],
             ),
             
-            // Expanded details
+            // Expanded details with enhanced UI
             AnimatedSize(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
               child: isExpanded
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Direction
-                          Row(
-                            children: [
-                              Icon(
-                                LucideIcons.arrowRight,
-                                size: 14,
-                                color: isDark ? AppColors.grey500 : AppColors.grey500,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Direction ${segment.ligne.directionTerminus}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDark ? AppColors.grey400 : AppColors.grey600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          
-                          // Duration
-                          Row(
-                            children: [
-                              Icon(
-                                LucideIcons.clock,
-                                size: 14,
-                                color: isDark ? AppColors.grey500 : AppColors.grey500,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Durée: ${segment.estimatedDuration.inMinutes} min',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark ? AppColors.grey400 : AppColors.grey600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          
-                          // Station list
-                          if (segment.stations.length > 2) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isDark 
-                                    ? AppColors.darkSurfaceVariant 
-                                    : AppColors.lightSurfaceVariant,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Arrêts:',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? AppColors.grey400 : AppColors.grey600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  ...segment.stations.map((station) {
-                                    final isOrigin = station == segment.departureStation;
-                                    final isDest = station == segment.arrivalStation;
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 2),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: isOrigin || isDest ? color : color.withValues(alpha: 0.5),
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              station.nom,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: isOrigin || isDest ? FontWeight.w600 : FontWeight.normal,
-                                                color: isDark ? AppColors.grey300 : AppColors.grey700,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                  ? SegmentDetailsExpanded(
+                      segment: segment,
+                      segmentColor: color,
+                      isExpanded: isExpanded,
                     )
                   : const SizedBox.shrink(),
             ),
